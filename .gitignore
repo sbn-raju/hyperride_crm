@@ -1,0 +1,7 @@
+#Except node_modules push all files to github.
+node_modules
+
+#Except all types of env files push all files to github.
+.env*
+*.env
+env.*
