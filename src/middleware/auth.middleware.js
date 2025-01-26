@@ -4,8 +4,9 @@ const jwt = require("jsonwebtoken");
 const userAuthentication = async(req, res, next)=>{
 
     //Getting Tokens to the user.
-    const user_token = req.headers.cookie;
+    const user_token = req.headers.auth_token;
     console.log(req.headers);
+    console.log(user_token);
 
 
     if(!user_token){
@@ -16,38 +17,9 @@ const userAuthentication = async(req, res, next)=>{
     }
 
 
-    //Verifing initially that user token is present or not in the headers.
-    if(!user_token){
-        return res.status(403).json({
-            success: false,
-            message: "Authentication token required for User in headers."
-        })
-    }
-
-    //Splitting up the Berare to get only the token string.
-    const userToken = user_token.split('user_token=')[1]?.split(';')[0];
-    // console.log(userToken);
-
-    //Validation if the token is present or not.
-    if(!userToken){
-        return res.status(403).json({
-            success: false,
-            message: "Authentication token required for Vendor"
-        })
-    }
-
-    //Check if the token is the vendors token or not.
-    const vendorTokenVerification = user_token.split('=');
-    if(vendorTokenVerification[0] != "user_token"){
-        return res.status(403).json({
-            success: false,
-            message: "Invalid Token for User"
-        })
-    } 
-
     //Getting the details form the token.
     try {
-        const decodedUser = jwt.verify(userToken, process.env.USER_JWT_TOKEN);
+        const decodedUser = jwt.verify(user_token, process.env.JWT_SECRET_KEY);
 
         //Validation check for the decoded-user.
         if(!decodedUser){
@@ -59,6 +31,7 @@ const userAuthentication = async(req, res, next)=>{
 
         //Getting the Decoded User.
         req.user = decodedUser;
+        console.log(decodedUser)
 
         //Carrying to the next controllers
         next();
