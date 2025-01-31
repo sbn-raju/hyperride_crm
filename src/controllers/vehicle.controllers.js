@@ -140,64 +140,104 @@ const unfreezeVehicleController = async(req, res)=>{
 }
 
 
-//This API will fetch the all the vehicles listed.
-const getAllVehicleControllers = async(req, res)=>{
+const getAllVehicleControllers = async (req, res) => {
+    // Extract page and limit from query parameters with defaults
+    const page = parseInt(req.query.page, 10) || 1; // Default to page 1
+    const limit = parseInt(req.query.limit, 10) || 10; // Default to 10 records per page
+    const offset = (page - 1) * limit; // Calculate offset for pagination
 
-    //Query to get all the vehicle from the database.
-    const getQuery = "SELECT * FROM vehicle_master";
-    
-    //Get all the information.
+    // Query to get the total count of vehicles
+    const countQuery = "SELECT COUNT(*) FROM vehicle_master";
+
+    // Query to fetch the vehicles with limit and offset
+    const getQuery = `
+        SELECT * FROM vehicle_master
+        ORDER BY id ASC
+        LIMIT $1 OFFSET $2
+    `;
+
     try {
-        const getQueryResult = await pool.query(getQuery);
-        if(getQueryResult.rowCount != 0){
+        // Execute the count query
+        const countResult = await pool.query(countQuery);
+        const totalCount = parseInt(countResult.rows[0].count, 10);
+
+        // Execute the fetch query
+        const getQueryResult = await pool.query(getQuery, [limit, offset]);
+
+        // Check if vehicles are found
+        if (getQueryResult.rowCount > 0) {
             return res.status(200).json({
                 success: true,
-                data: getQueryResult.rows
-            })
-        }else{
-            return res.status(400).json({
+                data: getQueryResult.rows,
+                totalCount, // Total number of vehicles
+                currentPage: page,
+                totalPages: Math.ceil(totalCount / limit), // Calculate total pages
+            });
+        } else {
+            return res.status(404).json({
                 success: false,
-                message: "No vehicles found" 
-            })
+                message: "No vehicles found",
+            });
         }
     } catch (error) {
-        console.log(error);
+        console.error(error);
         return res.status(500).json({
             success: false,
-            message: `Internal Server Error: ${error}`
-        }) 
+            message: `Internal Server Error: ${error.message}`,
+        });
     }
-}
+};
+
 
 
 //This API will fetch the all the vehicles listed which are available.
 const getAllAvailableVehicleControllers = async(req, res)=>{
 
-    //Query to get all the vehicle from the database.
-    const getQuery = "SELECT * FROM vehicle_master WHERE vehicle_isavailable = $1";
-    const getValue = [true]
-    
-    //Get all the information.
-    try {
-        const getQueryResult = await pool.query(getQuery, getValue);
-        if(getQueryResult.rowCount != 0){
-            return res.status(200).json({
-                success: true,
-                data: getQueryResult.rows
-            })
-        }else{
-            return res.status(400).json({
-                success: false,
-                message: "No vehicles available" 
-            })
-        }
-    } catch (error) {
-        console.log(error);
-        return res.status(500).json({
+// Extract page and limit from query parameters with defaults
+const page = parseInt(req.query.page, 10) || 1; // Default to page 1
+const limit = parseInt(req.query.limit, 10) || 10; // Default to 10 records per page
+const offset = (page - 1) * limit; // Calculate offset for pagination
+
+// Query to get the total count of vehicles
+const countQuery = "SELECT COUNT(*) FROM vehicle_master";
+
+// Query to fetch the vehicles with limit and offset
+const getQuery = `
+    SELECT id, vehicle_name, vehicle_number, engine_type, vehicle_category FROM vehicle_master WHERE vehicle_isavailable = $1
+    ORDER BY id ASC
+    LIMIT $2 OFFSET $3
+`;
+
+try {
+    // Execute the count query
+    const countResult = await pool.query(countQuery);
+    const totalCount = parseInt(countResult.rows[0].count, 10);
+
+    // Execute the fetch query
+    const getQueryResult = await pool.query(getQuery, [true, limit, offset]);
+
+    // Check if vehicles are found
+    if (getQueryResult.rowCount > 0) {
+        return res.status(200).json({
+            success: true,
+            data: getQueryResult.rows,
+            totalCount, // Total number of vehicles
+            currentPage: page,
+            totalPages: Math.ceil(totalCount / limit), // Calculate total pages
+        });
+    } else {
+        return res.status(404).json({
             success: false,
-            message: `Internal Server Error: ${error}`
-        }) 
+            message: "No vehicles found",
+        });
     }
+} catch (error) {
+    console.error(error);
+    return res.status(500).json({
+        success: false,
+        message: `Internal Server Error: ${error.message}`,
+    });
+}
 }
 
 
@@ -266,6 +306,103 @@ const getAllFrezzedVehicleControllers = async(req, res)=>{
 }
 
 
+//This API will get the engine types
+const getEngineTypeController = async(req, res)=>{
+
+    //Query to get the unique Engine type.
+    const getEngineTypeQuery = "SELECT DISTINCT engine_type FROM vehicle_master";
+
+    try {
+        const getEngineTypeResult = await pool.query(getEngineTypeQuery);
+        if(getEngineTypeResult.rowCount != 0){
+            return res.status(200).json({
+                success: true,
+                data: getEngineTypeResult.rows
+            })
+        }else{
+            return res.status(400).json({
+                success: false,
+                message: "No Distinct Engine Types"
+            })
+        }
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+            success: false,
+            message: `Internal Server Error: ${error}`
+        }) 
+    }
+}
+
+
+//This API will get the unique
+const getVehicleCategoryController = async(req, res)=>{
+
+    //Query to get the unique Engine type.
+    const getVehicleCategoryQuery = "SELECT DISTINCT vehicle_category FROM vehicle_master";
+
+    try {
+        const getVehicleCategoryResult = await pool.query(getVehicleCategoryQuery);
+        if(getVehicleCategoryResult.rowCount != 0){
+            return res.status(200).json({
+                success: true,
+                data: getVehicleCategoryResult.rows
+            })
+        }else{
+            return res.status(400).json({
+                success: false,
+                message: "No Distinct Vehicle Category"
+            })
+        }
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+            success: false,
+            message: `Internal Server Error: ${error}`
+        }) 
+    }
+}
+
+
+//Geeting vehicle based on the Category and engine type.
+const getEngineAndCategory = async(req, res)=>{
+
+    //Getting the vehicle category and the engine type.
+    const { vehicle_category, engine_type } = req.body;
+
+    //Validation Check.
+    if(!vehicle_category || !engine_type){
+        return res.status(400).json({
+            success: false,
+            message: "All fields required"
+        })
+    }
+
+    //Query to fetch the vehicles based on teh engine type and the vehicle type.
+    const fetchVehiclesQuery = "SELECT id, vehicle_name, vehicle_number FROM vehicle_master WHERE engine_type = $1 AND vehicle_category = $2 AND vehicle_isavailable = $3";
+    const ftechVehiclesValue = [engine_type, vehicle_category, true];
+
+    try {
+        const fetchVehiclesResult = await pool.query(fetchVehiclesQuery, ftechVehiclesValue);
+        if(fetchVehiclesResult.rowCount != 0){
+            return res.status(200).json({
+                success: true,
+                data: fetchVehiclesResult.rows
+            })
+        }else{
+            return res.status(400).json({
+                success: false,
+                message: "No Vehicle Found in this variants"
+            })
+        }
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+            success: false,
+            message: `Internal Server Error: ${error}`
+        }) 
+    }
+}
 
 
 module.exports = {
@@ -275,5 +412,8 @@ module.exports = {
     getAllVehicleControllers,
     getAllAvailableVehicleControllers,
     getSingleVehicleControllers,
-    getAllFrezzedVehicleControllers
+    getAllFrezzedVehicleControllers,
+    getEngineTypeController,
+    getVehicleCategoryController,
+    getEngineAndCategory
 }

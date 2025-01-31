@@ -8,6 +8,9 @@ const authRouter = require("./routes/auth.routes");
 const userRoute = require("./routes/user.routes");
 const cuponRoute = require("./routes/cupons.routes");
 const addonsRoute = require("./routes/addons.routes");
+const rentalRoute = require("./routes/rentals.routes");
+const bookingRoute = require("./routes/bookings.routes");
+const customerRoute = require("./routes/customers.routes");
 dotenv.config();
 
 //Importing the app
@@ -21,7 +24,7 @@ app.use(express.static(path.join(__dirname, "public")));
 
 
 //Cors
-app.use(cors());
+app.use(cors({origin: ["http://admin.hyprride.com", "http://localhost:5173"]}));
 
 //Importing Port number from the env.
 const PORT  = process.env.PORT || 5000;
@@ -45,6 +48,14 @@ app.use("/api/v1.hyperride/cupons", cuponRoute);
 //Addons Routes
 app.use("/api/v1.hyperride/addons", addonsRoute);
 
+//Rental Routes
+app.use("/api/v1.hyperride/rentals", rentalRoute);
+
+//Booking Routes
+app.use("/api/v1.hyperride/bookings", bookingRoute);
+
+//Customer Routes
+app.use("/api/v1.hyperride/customers", customerRoute);
 
 //Listening to the server.
 app.listen(PORT, ()=>{

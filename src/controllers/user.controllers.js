@@ -36,6 +36,32 @@ const getUserController = async(req, res)=>{
 
 }
 
+//This API will get all the data of the users.
+const getUsersController = async(req, res)=>{
+
+
+    //Getting the user data from the database.
+    const fetchUserQuery = "SELECT admin_name, admin_email, isverified, is_blocked, admin_username FROM admin_registration";
+
+    try {
+        const fetchUserResult = await pool.query(fetchUserQuery);
+        if(fetchUserResult.rowCount != 0){
+            return res.status(200).json({
+                success: true,
+                data: fetchUserResult.rows
+            })
+        }
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+         success: false,
+         message: `Internal Server Error ${error}`
+        });
+    }
+
+}
+
+
 
 const updateUserController = async (req, res) => { 
     console.log(req.body);
@@ -91,5 +117,6 @@ const updateUserController = async (req, res) => {
 
 module.exports = {
     getUserController,
-    updateUserController
+    updateUserController,
+    getUsersController
 }

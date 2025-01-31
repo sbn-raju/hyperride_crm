@@ -55,10 +55,10 @@ const register = async (req, res) => {
 //This below API will login in the register.
 const login = async (req, res) => {
   //Getting all the information the user from the frontend.
-  const { username, password } = req.body;
+  const { admin_email, password } = req.body;
 
   //Validation Check
-  if (!username || !password) {
+  if (!admin_email || !password) {
     return res.status(400).json({
       success: false,
       message: "Please check all your fields",
@@ -67,8 +67,8 @@ const login = async (req, res) => {
 
   //Checking in the database whater the user exists or not.
   const fetchUserQuery =
-    "SELECT * FROM admin_registration WHERE admin_username = $1 AND isverified = $2 AND is_blocked = $3";
-  const fetchUserValue = [username, true, false];
+    "SELECT * FROM admin_registration WHERE admin_email = $1 AND isverified = $2 AND is_blocked = $3";
+  const fetchUserValue = [admin_email, true, false];
 
   //If the user exists then make sure that he enters the correct password.
   try {
@@ -183,6 +183,8 @@ const verifyOtpController = async (req, res) => {
   //Getting the informtiion of the admin.
   const { admin_email, otp } = req.body;
 
+  console.log(req.body);
+
   //Validation check.
   if (!admin_email || !otp) {
     return res.status(400).json({
@@ -201,15 +203,15 @@ const verifyOtpController = async (req, res) => {
 
     if (getOtpResult.rowCount != 0) {
       const OneTimePass = getOtpResult.rows[0];
+      console.log(OneTimePass);
 
       //Get the present datetime;
       const now = new Date();
-      if (now <= OneTimePass.otp_expired && otp === OneTimePass.otp && !OneTimePass.otp_used) {
+      if (now <= OneTimePass.otp_expired && parseInt(otp) === OneTimePass.otp && !OneTimePass.otp_used) {
         const udpateStatus = await pool.query(
           "UPDATE admin_registration SET isverified = $1, otp_used = $2 WHERE admin_email = $3",
           [true, true, admin_email]
         );
-
         if (udpateStatus.rowCount != 0) {
           return res.status(200).json({
             success: true,
@@ -217,8 +219,8 @@ const verifyOtpController = async (req, res) => {
           });
         }
       } else {
-        return res.status(200).json({
-          success: true,
+        return res.status(400).json({
+          success: false,
           message: "OTP is expired, invalid or Used",
         });
       }
@@ -232,9 +234,55 @@ const verifyOtpController = async (req, res) => {
   }
 };
 
+
+//This API will block the access of the user to access te 
+const blockUserController = async(req, res)=>{
+
+  //Getting the user_email to block the user from the dashboard.
+  const { admin_email } = req.body;
+
+  //Getting the admin_id who is bocking is.
+  const admin_id = req.user.id;
+  
+  //Validation Check 
+  if(!admin_email){
+    return res.status(400).json({
+      success: false,
+      message: "Invalid Admin",
+    });
+  }
+
+
+  //Query to block the username
+  const blockUserQuery = "UPDATE admin_registration SET is_blocked = $1, blocked_by = $2 WHERE admin_email = $3";
+  const blockUserValue = [true, admin_id, admin_email];
+
+  try {
+    const blockUserResult = await pool.query(blockUserQuery, blockUserValue);
+    if(blockUserResult.rowCount != 0){
+      return res.status(200).json({
+        success: true,
+        message: "Admin user is block successfully"
+      })
+    }else{
+      return res.status(400).json({
+        success: false,
+        message: "Admin not found"
+      })
+    }
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      success: false,
+      message: `Internal Server Error ${error}`,
+    });
+  }
+}
+
 module.exports = {
   register,
   login,
   triggerOtpController,
-  verifyOtpController
+  verifyOtpController,
+  blockUserController
 };
