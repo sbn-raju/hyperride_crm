@@ -5,6 +5,7 @@ const moment = require('moment-timezone');
 
 const addBookings = async(req, res)=>{
 
+    await pool.query('BEGIN');
     //Getting all the information from the request.
     //destructuring the pickup details,
     const { actual_return_datetime, km_readings, pickup_datetime, customer_id } = req.body.values;
@@ -20,7 +21,7 @@ const addBookings = async(req, res)=>{
 
 
     //Destructuring the vehcile details , plan details and the payment details.
-    const {booking_type, plan_selected, vehicle_category, engine_type, vehicle_selected, addons, amount_paid, deposit, total_amount_paid } = req.body.values;
+    const {booking_type, plan_selected, vehicle_category, engine_type, vehicle_selected, addons, amount_paid, deposit, total_amount_paid, comments } = req.body.values;
     
 
     
@@ -47,8 +48,8 @@ const addBookings = async(req, res)=>{
             const currentTimestamp = moment().tz('Asia/Kolkata').format('YYYY-MM-DD HH:mm:ss');
             // const customer_id = 1;
 
-            const addBookingDetailsQuery = "INSERT INTO bookings (customer_id, bike_id, plan_selected, booked_by, pickup_details, amount_paid, amount_deposit, amount_pending, booking_time, extra_addons, created_by, updated_by, booking_status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id"
-            const addBookingDetailsValues = [customer_id, vehicle_selected, plan_selected, admin_id, pickup_details_id, amount_paid, deposit, amount_pending, currentTimestamp, addonsString, admin_id, admin_id, booking_type] 
+            const addBookingDetailsQuery = "INSERT INTO bookings (customer_id, bike_id, plan_selected, booked_by, pickup_details, amount_paid, amount_deposit, amount_pending, booking_time, extra_addons, created_by, updated_by, booking_status, comments) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id"
+            const addBookingDetailsValues = [customer_id, vehicle_selected, plan_selected, admin_id, pickup_details_id, amount_paid, deposit, amount_pending, currentTimestamp, addonsString, admin_id, admin_id, booking_type, comments] 
              
             const addBookingDetailsResult = await pool.query(addBookingDetailsQuery, addBookingDetailsValues);
             if(addBookingDetailsResult.rowCount != 0){
@@ -59,12 +60,20 @@ const addBookings = async(req, res)=>{
                 const monthAbbr = new Date().toLocaleString('en-US', { month: 'short' }).toUpperCase();
                 const booking_id = `HYPR-${monthAbbr}${booking_details_id}`
 
+                //Updateing the status of the bikes to the people.
+                const updateVehicleStatusQuery = "UPDATE vehicle_master SET vehicle_isavailable = $1 WHERE id = $2";
+                const updateVehicleStatusValue = [false, vehicle_selected];
+
+                const updateVehicleStatusResult = await pool.query(updateVehicleStatusQuery, updateVehicleStatusValue);
+
+                //Updating the booking of the booking.
                 const updateBookingIdQuery = "UPDATE bookings SET booking_id = $1 WHERE id = $2";
                 const updateBookingIdValues = [booking_id, booking_details_id];
 
                 const updateBookingIdResult = await pool.query(updateBookingIdQuery, updateBookingIdValues);
 
-                if(updateBookingIdResult.rowCount != 0){
+                if(updateBookingIdResult.rowCount != 0 && updateVehicleStatusResult.rowCount != 0){
+                    await pool.query('COMMIT');
                     return res.status(201).json({
                         success: true,
                         message: "Booking created successfully"
@@ -73,6 +82,7 @@ const addBookings = async(req, res)=>{
             }
         }
     } catch (error) {
+        await pool.query('ROLLBACK');
         console.log(error);
         return res.status(500).json({
             success: false,
@@ -214,11 +224,61 @@ const getAdvancedBookingsControllers = async (req, res) => {
     }
 };
 
+const getSingleBookingController = async(req, res)=>{
+
+    //Getting the id from the query.
+    const { booking_id } = req.query;
+
+    //Validation check.
+    if(!booking_id){
+        return res.status(200).json({
+            success: false,
+            message: "All Fields are required"
+        })
+    }
+
+
+    //Query to get all the details of the booking from the database.
+    const getSingleQuery = "SELECT b.id, b.booking_id, b.amount_paid, b.amount_deposit, b.booking_time, b.booking_status, b.extra_addons,b.comments, c.user_name, c.user_mobile, c.user_alt_no, v.id AS vehicle_id, v.vehicle_name, v.vehicle_number, p.rental_name, p.rental_category, p.rental_rate, pick.km_readings, pick.pickup_datetime, pick.actual_return_datetime FROM bookings b JOIN customer_registration c ON c.id = b.customer_id JOIN vehicle_master v ON v.id = b.bike_id JOIN rentals_plan p ON p.id = b.plan_selected JOIN pickup_details pick ON pick.id = b.pickup_details WHERE b.id = $1"
+
+    const getSingleValue = [booking_id];
+
+    try {
+        const getSingleResult = await pool.query(getSingleQuery, getSingleValue);
+
+        //Getting Addons Details Also.
+        const addonsString = getSingleResult.rows[0].extra_addons;
+        const addonsArray = addonsString ? addonsString.split(", ") : [];
+        console.log("Addons Array", addonsArray);
+
+        const getAddonsDetails = await pool.query("SELECT addons_name, addons_amount FROM addons WHERE id = ANY($1)", [addonsArray]);
+
+        const bookingDetails = getSingleResult.rows[0];
+        const addonKey = "extra_addons_details";
+
+        bookingDetails[addonKey] = getAddonsDetails.rows;
+
+        if(getSingleResult.rowCount != 0){
+            return res.status(200).json({
+                success: true,
+                data: bookingDetails
+            })
+        }
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            success: false,
+            message: `Internal Server Error: ${error.message}`,
+        });
+    }
+}
+
 
 module.exports = {
     addBookings,
     getLiveBookingsControllers,
-    getAdvancedBookingsControllers
+    getAdvancedBookingsControllers,
+    getSingleBookingController
 }
 
 

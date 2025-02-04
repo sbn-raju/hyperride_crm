@@ -24,7 +24,8 @@ app.use(express.static(path.join(__dirname, "public")));
 
 
 //Cors
-app.use(cors({origin: ["http://admin.hyprride.com", "http://localhost:5173"]}));
+app.use(cors())
+// app.use(cors({origin: ["http://admin.hyprride.com", "http://localhost:5173"]}));
 
 //Importing Port number from the env.
 const PORT  = process.env.PORT || 5000;

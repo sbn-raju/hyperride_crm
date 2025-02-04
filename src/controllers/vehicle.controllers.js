@@ -63,11 +63,14 @@ const freezeVehicleController = async(req, res)=>{
             message: "Re-check the entered data."
         })
     }
+
+    //Adding the user id from the middleware.
+    const admin_id = req.user.id;
     
 
     //Query to Freeze the vehicle into the database.
-    const freezeVehicleQuery = "UPDATE vehicle_master SET vehicle_isfreeze = $1 , vehicle_isavailable = $2 WHERE id = $3";
-    const freezeVehicleValue = [ true, false, vehicle_id];
+    const freezeVehicleQuery = "UPDATE vehicle_master SET vehicle_isfreeze = $1 , vehicle_isavailable = $2, updated_by = $3 WHERE id = $4";
+    const freezeVehicleValue = [ true, false, admin_id, vehicle_id];
 
     //Update the information.
     try {
@@ -108,11 +111,13 @@ const unfreezeVehicleController = async(req, res)=>{
             message: "Re-check the entered data."
         })
     }
+
+    const admin_id = req.user.id;
     
 
     //Query to Freeze the vehicle into the database.
-    const freezeVehicleQuery = "UPDATE vehicle_master SET vehicle_isfreeze = $1 , vehicle_isavailable = $2 WHERE id = $3";
-    const freezeVehicleValue = [ false, true, vehicle_id];
+    const freezeVehicleQuery = "UPDATE vehicle_master SET vehicle_isfreeze = $1 , vehicle_isavailable = $2, updated_by = $3 WHERE id = $4";
+    const freezeVehicleValue = [ false, true, admin_id, vehicle_id];
 
     //Update the information.
     try {
@@ -151,9 +156,9 @@ const getAllVehicleControllers = async (req, res) => {
 
     // Query to fetch the vehicles with limit and offset
     const getQuery = `
-        SELECT * FROM vehicle_master
+        SELECT * FROM vehicle_master WHERE is_delete = $1
         ORDER BY id ASC
-        LIMIT $1 OFFSET $2
+        LIMIT $2 OFFSET $3
     `;
 
     try {
@@ -162,7 +167,7 @@ const getAllVehicleControllers = async (req, res) => {
         const totalCount = parseInt(countResult.rows[0].count, 10);
 
         // Execute the fetch query
-        const getQueryResult = await pool.query(getQuery, [limit, offset]);
+        const getQueryResult = await pool.query(getQuery, [0, limit, offset]);
 
         // Check if vehicles are found
         if (getQueryResult.rowCount > 0) {
@@ -203,9 +208,9 @@ const countQuery = "SELECT COUNT(*) FROM vehicle_master";
 
 // Query to fetch the vehicles with limit and offset
 const getQuery = `
-    SELECT id, vehicle_name, vehicle_number, engine_type, vehicle_category FROM vehicle_master WHERE vehicle_isavailable = $1
+    SELECT id, vehicle_name, vehicle_number, engine_type, vehicle_category FROM vehicle_master WHERE vehicle_isavailable = $1 AND is_delete = $2
     ORDER BY id ASC
-    LIMIT $2 OFFSET $3
+    LIMIT $3 OFFSET $4
 `;
 
 try {
@@ -214,7 +219,7 @@ try {
     const totalCount = parseInt(countResult.rows[0].count, 10);
 
     // Execute the fetch query
-    const getQueryResult = await pool.query(getQuery, [true, limit, offset]);
+    const getQueryResult = await pool.query(getQuery, [true, 0, limit, offset]);
 
     // Check if vehicles are found
     if (getQueryResult.rowCount > 0) {
@@ -248,8 +253,8 @@ const getSingleVehicleControllers = async(req, res)=>{
     const { vehicle_id } = req.query; 
 
     //Query to get all the vehicle from the database.
-    const getQuery = "SELECT * FROM vehicle_master WHERE id = $1";
-    const getValue = [vehicle_id]
+    const getQuery = "SELECT * FROM vehicle_master WHERE id = $1 AND is_delete = $2";
+    const getValue = [vehicle_id, 0]
     
     //Get all the information.
     try {
@@ -279,8 +284,8 @@ const getSingleVehicleControllers = async(req, res)=>{
 const getAllFrezzedVehicleControllers = async(req, res)=>{
 
     //Query to get all the vehicle from the database.
-    const getQuery = "SELECT * FROM vehicle_master WHERE vehicle_isavailable = $1 AND vehicle_isfreeze = $2";
-    const getValue = [false, true]
+    const getQuery = "SELECT * FROM vehicle_master WHERE vehicle_isavailable = $1 AND vehicle_isfreeze = $2 AND is_delete = $3";
+    const getValue = [false, true, 0]
     
     //Get all the information.
     try {
@@ -379,8 +384,8 @@ const getEngineAndCategory = async(req, res)=>{
     }
 
     //Query to fetch the vehicles based on teh engine type and the vehicle type.
-    const fetchVehiclesQuery = "SELECT id, vehicle_name, vehicle_number FROM vehicle_master WHERE engine_type = $1 AND vehicle_category = $2 AND vehicle_isavailable = $3";
-    const ftechVehiclesValue = [engine_type, vehicle_category, true];
+    const fetchVehiclesQuery = "SELECT id, vehicle_name, vehicle_number FROM vehicle_master WHERE engine_type = $1 AND vehicle_category = $2 AND vehicle_isavailable = $3 AND is_delete = $4";
+    const ftechVehiclesValue = [engine_type, vehicle_category, true, 0];
 
     try {
         const fetchVehiclesResult = await pool.query(fetchVehiclesQuery, ftechVehiclesValue);
@@ -405,6 +410,53 @@ const getEngineAndCategory = async(req, res)=>{
 }
 
 
+
+//This below API will soft delete the vehicle details.
+const deleteVehicleController = async(req, res)=>{
+
+    //Getting the id of the vehicle from the body.
+    const { id } = req.body;
+
+
+    //Validation check.
+    if(!id){
+      return res.status(400).json({
+        success: false,
+        message: "All the fields are required"
+      })
+    }
+
+    const admin_id = req.user.id;
+
+
+    //Query to delete the vehicle from the database.
+    const deleteQuery = "UPDATE vehicle_master SET is_delete = $1, updated_by = $2 WHERE id = $3 RETURNING *";
+
+    const deleteValues = [1, admin_id, id];
+
+    try {
+        const response = await pool.query(deleteQuery, deleteValues);
+        if(response.rowCount != 0){
+            return res.status(200).json({
+                success: true,
+                message: "Vehicle delete successfully"
+            })
+        }else{
+            return res.status(400).json({
+                success: false,
+                message: "Vehicle not found"
+              })
+        } 
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+            success: false,
+            message: `Internal Server Error: ${error}`
+        }) 
+    }
+}
+
+
 module.exports = {
     addVehicleControllers,
     freezeVehicleController,
@@ -415,5 +467,6 @@ module.exports = {
     getAllFrezzedVehicleControllers,
     getEngineTypeController,
     getVehicleCategoryController,
-    getEngineAndCategory
+    getEngineAndCategory,
+    deleteVehicleController
 }

@@ -1,5 +1,5 @@
 const express = require("express");
-const { addVehicleControllers, freezeVehicleController, unfreezeVehicleController, getAllAvailableVehicleControllers, getAllVehicleControllers, getSingleVehicleControllers, getAllFrezzedVehicleControllers, getEngineTypeController, getVehicleCategoryController, getEngineAndCategory } = require("../controllers/vehicle.controllers");
+const { addVehicleControllers, freezeVehicleController, unfreezeVehicleController, getAllAvailableVehicleControllers, getAllVehicleControllers, getSingleVehicleControllers, getAllFrezzedVehicleControllers, getEngineTypeController, getVehicleCategoryController, getEngineAndCategory, deleteVehicleController } = require("../controllers/vehicle.controllers");
 const upload = require("../helpers/multer");
 const { userAuthentication } = require("../middleware/auth.middleware");
 
@@ -35,5 +35,8 @@ vehicleRoute.route("/get/vehicle-category").get(userAuthentication, getVehicleCa
 
 //Vehicle.
 vehicleRoute.route("/get/vehicles").post(userAuthentication, getEngineAndCategory);
+
+//Delete Vehicle 
+vehicleRoute.route("/delete").put(userAuthentication, deleteVehicleController)
 
 module.exports = vehicleRoute

@@ -16,7 +16,7 @@ rentalRoute.route("/fetch-single/:id").get(userAuthentication, getRentalcontroll
 
 rentalRoute.route("/updated").put(userAuthentication, updateRentalController);
 
-rentalRoute.route("/delete").delete(userAuthentication, deleteRentalController);
+rentalRoute.route("/delete").put(userAuthentication, deleteRentalController);
 
 rentalRoute.route("/get-category").get(userAuthentication, getRentalCategory);
 

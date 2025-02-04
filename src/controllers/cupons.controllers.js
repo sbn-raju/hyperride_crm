@@ -168,7 +168,7 @@ const deleteSingleCouponControllers = async(req, res)=>{
 
 
     //Query to get the single addons details.
-    const getAddonsQuery = "DELETE * FROM cupons WHERE id = $1";
+    const getAddonsQuery = "DELETE FROM cupons WHERE id = $1 RETURNING id";
     const getAddonsValue = [id];
 
     //Hitting the database.

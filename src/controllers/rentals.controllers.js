@@ -56,7 +56,7 @@ const addRentalController = async (req, res) => {
 
 const fetchAllRentalController = async (req, res) => {
   try {
-    const result = await pool.query("SELECT * FROM rentals_plan ORDER BY id ASC");
+    const result = await pool.query("SELECT * FROM rentals_plan WHERE is_delete = $1 ORDER BY id ASC", [0]);
     if (result.rowCount != 0) {
       return res.status(200).json({
         success: true,
@@ -83,8 +83,8 @@ const getRentalcontroller = async (req, res) => {
     });
   }
   try {
-    const result = await pool.query("SELECT * FROM rentals_plan WHERE id = $1;", [
-      id,
+    const result = await pool.query("SELECT * FROM rentals_plan WHERE id = $1; AND is_delete=$2", [
+      id, 0
     ]);
     if (result.rows.length === 0) {
       return res
@@ -138,8 +138,8 @@ const getRentalPlanOnCategory = async(req, res)=>{
     });
   }
   try {
-    const result = await pool.query("SELECT * FROM rentals_plan WHERE rental_category = $1;", [
-      rental_category,
+    const result = await pool.query("SELECT * FROM rentals_plan WHERE rental_category = $1 AND is_delete = $2;", [
+      rental_category, 0
     ]);
     if (result.rows.length === 0) {
       return res
@@ -229,7 +229,7 @@ const updateRentalController = async (req, res) => {
 const deleteRentalController = async(req, res)=>{
     const { id } = req.body;
     try {
-        const result = await pool.query('DELETE FROM rentals_plan WHERE id = $1 RETURNING *', [id]);
+        const result = await pool.query('UPDATE rentals_plan SET is_delete = $1 WHERE id = $2 RETURNING id', [1, id]);
         if (result.rows.length === 0) {
             return res
         .status(404)

@@ -15,7 +15,7 @@ cuponRoute.route("/fetch-single").get(userAuthentication, getSingleCupons);
 
 cuponRoute.route("/updated").put(userAuthentication, updateCuponController);
 
-cuponRoute.route("/delete").put(userAuthentication, deleteSingleCouponControllers);
+cuponRoute.route("/delete").delete(userAuthentication, deleteSingleCouponControllers);
 
 module.exports = cuponRoute;
 
