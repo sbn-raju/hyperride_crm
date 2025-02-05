@@ -274,11 +274,72 @@ const getSingleBookingController = async(req, res)=>{
 }
 
 
+
+//Updating the exisiting bookings.
+//This API will handle the exchanges the booking vehicle by making the other available.
+const exchangeBookingVehicleController = async(req, res)=>{
+
+    //Getting the details from the the request.
+    const {booking_id, vehicle_number, vehicle_selected } = req.body;
+    //vehicle_id is the old bike which is to be exchanged.
+    //vehicle_selected is new selected vehicle.
+
+    console.log(typeof(vehicle_selected));
+
+    //Validation Check
+    if(!booking_id || !vehicle_number || !vehicle_selected){
+        return res.status(200).json({
+            success: false,
+            message: "All Id are required"
+        })
+    }
+
+
+    //Query to update the booking status.
+    const exchangeVehicleQuery = "UPDATE bookings SET bike_id = $1 WHERE booking_id = $2";
+    const exchangeVehicleValue = [vehicle_selected, booking_id];
+
+    try {
+        const exchangeVehicleResult = await pool.query(exchangeVehicleQuery, exchangeVehicleValue);
+        if(exchangeVehicleResult.rowCount != 0){
+
+            //This is to update the avilable of the vehicle which is previously selected to false.
+            const updateVehicleStatusQuery = "UPDATE vehicle_master SET vehicle_isavailable = $1 WHERE id = $2";
+            const updateVehicleStatusValue = [false, vehicle_selected];
+
+            const updateVehicleStatusResult = await pool.query(updateVehicleStatusQuery, updateVehicleStatusValue);
+
+
+            //This is to update the status of the vehicle which is selected now. 
+            const updateVehicleAvailableQuery = "UPDATE vehicle_master SET vehicle_isavailable = $1 WHERE vehicle_number = $2";
+            const updateVehicleAvailableValue = [true, vehicle_number];
+
+            const updateVehicleAvailableResult = await pool.query(updateVehicleAvailableQuery, updateVehicleAvailableValue);
+
+
+            if(updateVehicleStatusResult.rowCount != 0 && updateVehicleAvailableResult.rowCount != 0){
+                //This is the response.
+                return res.status(200).json({
+                    success: false,
+                    message: "Vehicle updated successfully"
+                })
+            }
+        }
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            success: false,
+            message: `Internal Server Error: ${error.message}`,
+        });
+    }
+}
+
 module.exports = {
     addBookings,
     getLiveBookingsControllers,
     getAdvancedBookingsControllers,
-    getSingleBookingController
+    getSingleBookingController,
+    exchangeBookingVehicleController
 }
 
 

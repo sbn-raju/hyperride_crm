@@ -37,6 +37,6 @@ vehicleRoute.route("/get/vehicle-category").get(userAuthentication, getVehicleCa
 vehicleRoute.route("/get/vehicles").post(userAuthentication, getEngineAndCategory);
 
 //Delete Vehicle 
-vehicleRoute.route("/delete").put(userAuthentication, deleteVehicleController)
+vehicleRoute.route("/delete").put(userAuthentication, deleteVehicleController);
 
 module.exports = vehicleRoute
