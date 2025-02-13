@@ -5,7 +5,7 @@ const userAuthentication = async(req, res, next)=>{
 
     //Getting Tokens to the user.
     const user_token = req.headers.auth_token;
-    console.log(req.headers);
+    console.log(req);
     console.log(user_token);
 
 

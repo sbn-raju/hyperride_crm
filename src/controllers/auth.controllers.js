@@ -5,7 +5,7 @@ const { mailSender } = require("../helpers/mailer.js");
 const otpGenerator = require("../helpers/otpGenerator.js");
 
 const register = async (req, res) => {
-  const { admin_name, admin_username, admin_email, admin_password } = req.body;
+  const { admin_name, admin_username, admin_email, admin_password, admin_role } = req.body;
 
   //Validation wheather the name, email and password is correct or not.
   if (!admin_name || !admin_username || !admin_email || !admin_password) {
@@ -32,8 +32,8 @@ const register = async (req, res) => {
       });
     } else {
       const response = await pool.query(
-        "INSERT INTO admin_registration (admin_name, admin_username, admin_email, admin_password) VALUES ($1, $2, $3, $4) RETURNING *",
-        [admin_name, admin_username, admin_email, hashedPassword]
+        "INSERT INTO admin_registration (admin_name, admin_username, admin_email, admin_password, role) VALUES ($1, $2, $3, $4, $5) RETURNING *",
+        [admin_name, admin_username, admin_email, hashedPassword, admin_role]
       );
 
       if (response.rowCount != 0) {
@@ -93,6 +93,7 @@ const login = async (req, res) => {
       const userData = {
         id: user.id,
         username: user.admin_username,
+        role: user.role,
       };
 
       // Generate JWT token
@@ -100,10 +101,18 @@ const login = async (req, res) => {
         expiresIn: "1h",
       });
 
-      return res.status(200).json({
+      return res.status(200).cookie('hypr', token, {
+        httpOnly: true, 
+        secure: false,
+        sameSite: 'lax', 
+        maxAge: 24 * 60 * 60 * 1000   
+      }).json({
         success: true,
         message: "Login successful",
-        data: user.admin_email,
+        data: {
+          userEmail: user.admin_email,
+          userRole: user.role
+        },
         token: token,
       });
     } else {

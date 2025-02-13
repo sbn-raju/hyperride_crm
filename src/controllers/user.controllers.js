@@ -10,7 +10,7 @@ const getUserController = async(req, res)=>{
     
 
     //Getting the user data from the database.
-    const fetchUserQuery = "SELECT * FROM admin_registration WHERE id = $1";
+    const fetchUserQuery = "SELECT admin_name, admin_email, isverified, is_blocked, admin_username, role FROM admin_registration WHERE id = $1";
     const fetchUserValue = [ id ];
 
     try {
@@ -41,7 +41,7 @@ const getUsersController = async(req, res)=>{
 
 
     //Getting the user data from the database.
-    const fetchUserQuery = "SELECT admin_name, admin_email, isverified, is_blocked, admin_username FROM admin_registration";
+    const fetchUserQuery = "SELECT admin_name, admin_email, isverified, is_blocked, admin_username, role FROM admin_registration";
 
     try {
         const fetchUserResult = await pool.query(fetchUserQuery);

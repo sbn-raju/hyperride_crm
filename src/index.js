@@ -2,6 +2,7 @@ const express = require("express");
 const dotenv = require("dotenv");
 const cors = require("cors");
 const path = require("path")
+const cookieParser = require('cookie-parser');
 const { connectToDatabase } = require("./database/db.connect");
 const vehicleRoute = require("./routes/vehicle.routes");
 const authRouter = require("./routes/auth.routes");
@@ -18,6 +19,9 @@ const app = express();
 
 app.use(express.urlencoded({extended: true}));
 app.use(express.json());
+
+//Parsing the cookies.
+app.use(cookieParser());
 
 //Static Files
 app.use(express.static(path.join(__dirname, "public")));
