@@ -7,8 +7,11 @@ const otpGenerator = require("../helpers/otpGenerator.js");
 const register = async (req, res) => {
   const { admin_name, admin_username, admin_email, admin_password, admin_role } = req.body;
 
+  //Getting the admin id.
+  const  admin_id  = req.user?.id;
+
   //Validation wheather the name, email and password is correct or not.
-  if (!admin_name || !admin_username || !admin_email || !admin_password) {
+  if (!admin_name || !admin_username || !admin_email || !admin_password || !admin_id) {
     return res.status(400).json({
       success: false,
       message: "Please enter all the fields",
@@ -32,8 +35,8 @@ const register = async (req, res) => {
       });
     } else {
       const response = await pool.query(
-        "INSERT INTO admin_registration (admin_name, admin_username, admin_email, admin_password, role) VALUES ($1, $2, $3, $4, $5) RETURNING *",
-        [admin_name, admin_username, admin_email, hashedPassword, admin_role]
+        "INSERT INTO admin_registration (admin_name, admin_username, admin_email, admin_password, role, created_by, updated_by) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *",
+        [admin_name, admin_username, admin_email, hashedPassword, admin_role, admin_id, admin_id]
       );
 
       if (response.rowCount != 0) {

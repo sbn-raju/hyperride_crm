@@ -1,20 +1,24 @@
 const express = require("express");
 const {login, register, triggerOtpController, verifyOtpController, blockUserController} = require("../controllers/auth.controllers.js");
 const { userAuthentication } = require("../middleware/auth.middleware");
+const authorization = require("../middleware/autho.middleware.js");
 
 const authRouter = express();
 
-authRouter.route("/register").post(register);
+authRouter.route("/register").post(userAuthentication, authorization(["superAdmin"]), register);
 
 authRouter.route("/login").post(login);
 
 
 
 //Routes to trigger and verify the OTP.
-authRouter.route("/trigger-email").post(userAuthentication, triggerOtpController);
+//Triggring the otp email.
+authRouter.route("/trigger-email").post(userAuthentication, authorization(["superAdmin"]), triggerOtpController);
 
-authRouter.route("/verify-otp").post(userAuthentication, verifyOtpController);
+//Verifying the OTP.
+authRouter.route("/verify-otp").post(userAuthentication, authorization(["superAdmin"]), verifyOtpController);
 
-authRouter.route("/blockuser").post(userAuthentication, blockUserController);
+//To Block the user.
+authRouter.route("/blockuser").post(userAuthentication, authorization(["superAdmin", "conflictManager"]), blockUserController);
 
 module.exports = authRouter

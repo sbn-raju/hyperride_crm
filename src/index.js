@@ -1,7 +1,8 @@
 const express = require("express");
 const dotenv = require("dotenv");
 const cors = require("cors");
-const path = require("path")
+const path = require("path");
+const rateLimiter = require("express-rate-limit");
 const cookieParser = require('cookie-parser');
 const { connectToDatabase } = require("./database/db.connect");
 const vehicleRoute = require("./routes/vehicle.routes");
@@ -20,16 +21,33 @@ const app = express();
 app.use(express.urlencoded({extended: true}));
 app.use(express.json());
 
+//Cors
+app.use(cors())
+// app.use(cors({origin: ["http://admin.hyprride.com", "http://localhost:5173"]}));
+
+//Adding the rate limiter to the application rto prevent DDos Attacks.
+const responseMessage = {
+    success: false,
+    message: "We're experiencing high traffic right now. Please try again in a moment. Thank you for your patience!",
+}
+const limiterOptions = {
+    windowMs : 1 * 60 * 1000,
+    max: 100,
+    message: responseMessage,
+    standardHeaders: true, 
+    legacyHeaders: false 
+}
+const limiter = rateLimiter(limiterOptions);
+app.use(limiter);
+
+
+
 //Parsing the cookies.
 app.use(cookieParser());
 
 //Static Files
 app.use(express.static(path.join(__dirname, "public")));
 
-
-//Cors
-app.use(cors())
-// app.use(cors({origin: ["http://admin.hyprride.com", "http://localhost:5173"]}));
 
 //Importing Port number from the env.
 const PORT  = process.env.PORT || 5000;
