@@ -291,7 +291,7 @@ const getDrivingLicenseControllers = async (req, res) => {
 
 //This API will trigger the Aadhar Card OTP.
 const triggerAadharOtpController = async (req, res) => {
-  //Get the Aadhar number and the id from the body.
+  // //Get the Aadhar number and the id from the body.
   const { aadhaar_number } = req.body;
 
   //Getting the Signature from the function to verification.
@@ -300,7 +300,7 @@ const triggerAadharOtpController = async (req, res) => {
   //Getting the Client details form the env file.
   const clientId = process.env.CASHFREE_CLIENT_ID;
   const clientSecret = process.env.CASHFREE_CLIENT_SECRET;
-
+  
   //Verification check
   if (!aadhaar_number || !signature || !clientId || !clientSecret) {
     return res.status(400).json({
@@ -328,7 +328,8 @@ const triggerAadharOtpController = async (req, res) => {
       headers: headerData,
       body: JSON.stringify(data),
     });
-
+    console.log(aadhaar_number,clientId,clientSecret,signature);
+    
     const result = await response.json();
     console.log(result);
     if (response.ok) {
@@ -349,6 +350,65 @@ const triggerAadharOtpController = async (req, res) => {
       message: `Internal Server Error: ${error}`,
     });
   }
+  // try {
+  //   // Extract Aadhaar number from request body
+  //   const { aadhaar_number } = req.body;
+  //   console.log(aadhaar_number);
+    
+  //   // Validate input
+  //   if (!aadhaar_number) {
+  //     return res.status(400).json({
+  //       success: false,
+  //       message: "Aadhaar number is required",
+  //     });
+  //   }
+
+  //   // Get client details from environment variables
+  //   const clientId =process.env.CASHFREE_CLIENT_ID;
+  //   const clientSecret = process.env.CASHFREE_CLIENT_SECRET;
+  //   console.log(clientId,clientSecret);
+    
+  //   const signature = await generateSignature();
+  //   console.log(signature);
+    
+  //   // Define request options
+  //   const options = {
+  //     method: "POST",
+  //     headers: {
+  //       "x-client-id": clientId,
+  //       "x-client-secret": clientSecret,
+  //       "Content-Type": "application/json",
+  //       "x-cf-signature": signature, 
+  //     },
+  //     body: JSON.stringify({ aadhaar_number }),
+  //   };
+
+  //   // Make the API request
+  //   const response = await fetch("https://sandbox.cashfree.com/verification/offline-aadhaar/otp", options);
+  //   const data = await response.json();
+  //   console.log(data);
+    
+  //   // Check if API response is successful
+  //   if (data.status !== "SUCCESS") {
+  //     return res.status(400).json({
+  //       success: false,
+  //       message: data.message || "Failed to send OTP",
+  //     });
+  //   }
+
+  //   // Return response to frontend
+  //   return res.status(200).json({
+  //     success: true,
+  //     message: "OTP sent successfully",
+  //     ref_id: data.ref_id,
+  //   });
+  // } catch (error) {
+  //   console.error("Error in sendAadhaarOtpController:", error);
+  //   return res.status(500).json({
+  //     success: false,
+  //     message: `Internal Server Error: ${error.message}`,
+  //   });
+  // }
 };
 
 //This API will Verify the OTP which is sent to the user.
