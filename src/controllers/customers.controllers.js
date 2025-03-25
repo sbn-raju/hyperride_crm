@@ -291,7 +291,7 @@ const getDrivingLicenseControllers = async (req, res) => {
 
 //This API will trigger the Aadhar Card OTP.
 const triggerAadharOtpController = async (req, res) => {
-  //Get the Aadhar number and the id from the body.
+  // //Get the Aadhar number and the id from the body.
   const { aadhaar_number } = req.body;
 
   //Getting the Signature from the function to verification.
@@ -300,7 +300,7 @@ const triggerAadharOtpController = async (req, res) => {
   //Getting the Client details form the env file.
   const clientId = process.env.CASHFREE_CLIENT_ID;
   const clientSecret = process.env.CASHFREE_CLIENT_SECRET;
-
+  
   //Verification check
   if (!aadhaar_number || !signature || !clientId || !clientSecret) {
     return res.status(400).json({
@@ -328,7 +328,8 @@ const triggerAadharOtpController = async (req, res) => {
       headers: headerData,
       body: JSON.stringify(data),
     });
-
+    console.log(aadhaar_number,clientId,clientSecret,signature);
+    
     const result = await response.json();
     console.log(result);
     if (response.ok) {
@@ -349,12 +350,14 @@ const triggerAadharOtpController = async (req, res) => {
       message: `Internal Server Error: ${error}`,
     });
   }
+ 
 };
 
 //This API will Verify the OTP which is sent to the user.
 const verifyAadhaarOtpController = async (req, res) => {
   //Getting the OTP and reference number to verify.
   const { ref_id, otp, aadhaar_number } = req.body;
+console.log(ref_id,otp,aadhaar_number);
 
   //Getting the signature from the function to verify.
   const signature = await generateSignature();
@@ -458,8 +461,11 @@ const verifyAadhaarOtpController = async (req, res) => {
         return res.status(200).json({
           success: true,
           message: "Aadhaar details added successfully",
+          user_name: holder_name,  // Send the name to frontend
+          user_address: full_address,  // Send the address to frontend
         });
-      } else {
+      }
+       else {
         return res.status(400).json({
           success: false,
           message: "Touble in adding the new Customer.",
@@ -509,6 +515,56 @@ const verifyOtpCustomerController = async (req, res) => {
   // const { } =
 };
 
+const updateCustomerMobileController = async (req, res) => {
+  // Extract Aadhaar number, mobile number, and alternate number from request body
+  const { aadhaar_number, user_mobile, user_alt_no } = req.body;
+  const admin_id = 5;
+  // Validation check
+  if (!aadhaar_number || !user_mobile || !user_alt_no) {
+    return res.status(400).json({
+      success: false,
+      message: "Please provide aadhaar_number, user_mobile, and user_alt_no",
+    });
+  }
+
+  try {
+    // Encrypt Aadhaar number before querying the database
+    const encryptedAadhaarNumber = await encryptData(aadhaar_number);
+
+    // Query to update mobile and alternate number based on encrypted Aadhaar number
+    const updateCustomerQuery = `
+      UPDATE customer_registration 
+      SET user_mobile = $1, user_alt_no = $2, updated_by = $3
+      WHERE user_adhaar_number = $4
+      RETURNING *;
+    `;
+
+    const updateValues = [user_mobile, user_alt_no, admin_id, encryptedAadhaarNumber];
+
+    const updateResult = await pool.query(updateCustomerQuery, updateValues);
+
+    if (updateResult.rowCount !== 0) {
+      return res.status(200).json({
+        success: true,
+        message: "Mobile number updated successfully",
+        user_mobile,
+        user_alt_no,
+      });
+    } else {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+  } catch (error) {
+    console.error("Error updating mobile number:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+  }
+};
+
 module.exports = {
   getCustomersControllers,
   getCustomerControllers,
@@ -517,5 +573,6 @@ module.exports = {
   triggerAadharOtpController,
   verifyAadhaarOtpController,
   triggerMobileOtpCustomerController,
-  getLastTransactionsDate
+  getLastTransactionsDate,
+  updateCustomerMobileController
 };
