@@ -493,6 +493,85 @@ const deleteVehicleController = async (req, res) => {
   }
 };
 
+
+//This Will get all the vehicle where for the service data
+const getAllVehicleServiceControllers = async (req, res) => {
+
+  // Extract page and limit from query parameters with defaults
+  const page = parseInt(req.query.page, 10) || 1; // Default to page 1
+  const limit = parseInt(req.query.limit, 10) || 10; // Default to 10 records per page
+  const offset = (page - 1) * limit; // Calculate offset for pagination
+  const engineType = req.query.engine_type;
+  console.log(engineType);
+
+ 
+  let getQuery = "";
+  let getValue = [];
+
+  let getCountQuery = "";
+  let getCountValue = [];
+
+  // Query to fetch the vehicles with limit and offset
+  if (engineType === "all") {
+    getQuery = `
+    SELECT id, vehicle_name, vehicle_number, engine_type, vehicle_category FROM vehicle_master WHERE is_delete = $1
+    ORDER BY id ASC
+    LIMIT $2 OFFSET $3
+`;
+    getValue = [0, limit, offset];
+
+    // Query to get the total count of vehicles
+    getCountQuery = "SELECT COUNT(*) FROM vehicle_master WHERE is_delete = $1";
+    getCountValue = [0];
+
+
+  } else {
+    getQuery = `
+    SELECT id, vehicle_name, vehicle_number, engine_type, vehicle_category FROM vehicle_master WHERE is_delete = $1 AND engine_type = $2
+    ORDER BY id ASC
+    LIMIT $3 OFFSET $4
+`;
+    getValue = [0, engineType, limit, offset];
+
+    // Query to get the total count of vehicles
+    getCountQuery = "SELECT COUNT(*) FROM vehicle_master WHERE engine_type = $1 AND is_delete = $2";
+    getCountValue = [engineType, 0];
+  }
+
+  try {
+    // Execute the count query
+    
+    const countResult = await pool.query(getCountQuery, getCountValue);
+    const totalCount = parseInt(countResult.rows[0].count, 10);
+
+    // Execute the fetch query
+    const getQueryResult = await pool.query(getQuery, getValue);
+
+    // Check if vehicles are found
+    if (getQueryResult.rowCount != 0) {
+      return res.status(200).json({
+        success: true,
+        data: getQueryResult.rows,
+        totalCount, // Total number of vehicles
+        currentPage: page,
+        totalPages: Math.ceil(totalCount / limit), // Calculate total pages
+      });
+    } else {
+      return res.status(404).json({
+        success: false,
+        message: "No vehicles found",
+      });
+    }
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      success: false,
+      message: `Internal Server Error: ${error.message}`,
+    });
+  }
+};
+
+
 module.exports = {
   addVehicleControllers,
   freezeVehicleController,
@@ -505,4 +584,5 @@ module.exports = {
   getVehicleCategoryController,
   getEngineAndCategory,
   deleteVehicleController,
+  getAllVehicleServiceControllers
 };

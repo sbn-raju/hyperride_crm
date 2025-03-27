@@ -13,6 +13,7 @@ const addonsRoute = require("./routes/addons.routes");
 const rentalRoute = require("./routes/rentals.routes");
 const bookingRoute = require("./routes/bookings.routes");
 const customerRoute = require("./routes/customers.routes");
+const serviceRoute = require("./routes/services.routes");
 dotenv.config();
 
 //Importing the app
@@ -79,6 +80,9 @@ app.use("/api/v1.hyperride/bookings", bookingRoute);
 
 //Customer Routes
 app.use("/api/v1.hyperride/customers", customerRoute);
+
+//Service Routes
+app.use("/api/v1.hyperride/service", serviceRoute);
 
 //Listening to the server.
 app.listen(PORT, ()=>{
