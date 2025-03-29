@@ -334,12 +334,124 @@ const exchangeBookingVehicleController = async(req, res)=>{
     }
 }
 
+
+
+//This APIs Will get the booking details of the given order.
+const getOrderDetailsController = async(req, res)=>{
+
+    //Getting the Order Id from the query.
+    const { order_id } = req.query;
+
+    //Validation Check
+    if(!order_id){
+        return res.status(400).json({
+            success: false,
+            message: "Order id is not present"
+        })
+    }
+
+    //Query to get the order details.
+    const getOrderDetailsQuery = "SELECT b.booking_status, b.comments, b.return_detail, b.booking_id, b.created_at, b.booking_time, b.amount_paid, b.amount_deposit, b.amount_pending, c.user_name, c.user_mobile, c.user_adhaar_number, c.user_address, c.user_gender, c.user_status, c.user_dob, c.user_care_of, v.vehicle_name, v.vehicle_number, v.engine_type, v.vehicle_category, v.vehicle_image, e.admin_name, e.admin_username, e.admin_email FROM bookings b JOIN customer_registration c ON c.id = b.customer_id JOIN vehicle_master v ON v.id = b.bike_id JOIN admin_registration e ON e.id = b.booked_by WHERE b.booking_id = $1"
+
+    const getOrderDetailsValues = [order_id];
+
+    try {
+        const getOrderDetailsResult = await pool.query(getOrderDetailsQuery, getOrderDetailsValues);
+
+        if(getOrderDetailsResult.rowCount != 0){
+            return res.status(200).json({
+                success: true,
+                data: getOrderDetailsResult.rows
+            })
+        }
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            success: false,
+            message: `Internal Server Error: ${error.message}`,
+        });
+    }
+}
+
+
+const getCompleteBookingsControllers = async (req, res) => {
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 10;
+    const offset = (page - 1) * limit;
+    const startDate = req.query.startDate ? new Date(req.query.startDate) : null;
+    const endDate = req.query.endDate ? new Date(req.query.endDate) : null;
+
+    let whereClause = "WHERE b.booking_status = $1";
+    let queryParams = ['Live Booking'];
+
+    if (startDate && endDate) {
+        whereClause += ` AND t.pickup_datetime BETWEEN $2 AND $3`;
+        queryParams.push(startDate, endDate);
+    }
+
+    const countQuery = `
+        SELECT COUNT(*) FROM bookings b 
+        JOIN customer_registration c ON b.customer_id = c.id 
+        JOIN vehicle_master v ON b.bike_id = v.id 
+        JOIN rentals_plan p ON b.plan_selected = p.id 
+        JOIN admin_registration e ON b.booked_by = e.id 
+        JOIN pickup_details t ON b.pickup_details = t.id 
+        ${whereClause}
+    `;
+
+    const getBookingsQuery = `
+        SELECT b.id, b.booking_id, b.booking_status, b.booking_time, 
+               c.user_name, c.user_mobile, v.vehicle_name, v.vehicle_number, 
+               p.rental_name, e.admin_name, t.pickup_datetime 
+        FROM bookings b 
+        JOIN customer_registration c ON b.customer_id = c.id 
+        JOIN vehicle_master v ON b.bike_id = v.id 
+        JOIN rentals_plan p ON b.plan_selected = p.id 
+        JOIN admin_registration e ON b.booked_by = e.id 
+        JOIN pickup_details t ON b.pickup_details = t.id 
+        ${whereClause} 
+        ORDER BY b.id ASC
+        LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}
+    `;
+
+    try {
+        const countResult = await pool.query(countQuery, queryParams);
+        const totalCount = parseInt(countResult.rows[0].count, 10);
+
+        queryParams.push(limit, offset);
+        const bookingsResult = await pool.query(getBookingsQuery, queryParams);
+
+        if (bookingsResult.rowCount > 0) {
+            return res.status(200).json({
+                success: true,
+                data: bookingsResult.rows,
+                totalCount,
+                currentPage: page,
+                totalPages: Math.ceil(totalCount / limit),
+            });
+        } else {
+            return res.status(404).json({
+                success: false,
+                message: "No completed bookings found",
+            });
+        }
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            success: false,
+            message: `Internal Server Error: ${error.message}`,
+        });
+    }
+};
+
 module.exports = {
     addBookings,
     getLiveBookingsControllers,
     getAdvancedBookingsControllers,
     getSingleBookingController,
-    exchangeBookingVehicleController
+    exchangeBookingVehicleController,
+    getOrderDetailsController,
+    getCompleteBookingsControllers
 }
 
 

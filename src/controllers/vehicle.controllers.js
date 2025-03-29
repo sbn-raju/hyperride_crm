@@ -572,6 +572,49 @@ const getAllVehicleServiceControllers = async (req, res) => {
 };
 
 
+//This is the controller which will tell which bike in use and all the details of that particular bike.
+const getVehicleInUseController = async(req, res)=>{
+
+  //Getting the booking from the query.
+  const { booking_id } = req.query;
+  
+  //Validation check of the booking Id.,
+  if(!booking_id){
+    return res.status(200).json({
+      success: false,
+      message: "Vehicle Id not present."
+    })
+  }
+
+
+  //Query to get the details of the bike based.
+  const getVehicleInUseQuery = "SELECT b.bike_id, v.* FROM bookings b JOIN vehicle_master v ON v.id = b.bike_id WHERE b.id = $1";
+  const getVehicleInUseValues = [booking_id];
+
+  //Getting the data from the backend.
+  try{
+    const getVehicleInUseResponse = await pool.query(getVehicleInUseQuery, getVehicleInUseValues);
+
+    if(getVehicleInUseResponse.rowCount != 0){
+      return res.status(200).json({
+        success: true,
+        data: getVehicleInUseResponse.rows[0]
+      })
+    }else {
+      return res.status(404).json({
+        success: false,
+        message: "No vehicles found",
+      });
+    }
+  }catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      success: false,
+      message: `Internal Server Error: ${error.message}`,
+    });
+  }
+}
+
 module.exports = {
   addVehicleControllers,
   freezeVehicleController,
@@ -584,5 +627,6 @@ module.exports = {
   getVehicleCategoryController,
   getEngineAndCategory,
   deleteVehicleController,
-  getAllVehicleServiceControllers
+  getAllVehicleServiceControllers,
+  getVehicleInUseController
 };

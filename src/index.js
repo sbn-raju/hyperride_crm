@@ -2,6 +2,8 @@ const express = require("express");
 const dotenv = require("dotenv");
 const cors = require("cors");
 const path = require("path");
+const http = require("http");
+const { Server } = require("socket.io");
 const rateLimiter = require("express-rate-limit");
 const cookieParser = require('cookie-parser');
 const { connectToDatabase } = require("./database/db.connect");
@@ -14,6 +16,9 @@ const rentalRoute = require("./routes/rentals.routes");
 const bookingRoute = require("./routes/bookings.routes");
 const customerRoute = require("./routes/customers.routes");
 const serviceRoute = require("./routes/services.routes");
+// const io = require("./web-sockets.js");
+const pushRideCompleteNotifications = require("./crons-jobs/PushRideCompleteNotify");
+const analyticsRoute = require("./routes/analytics.routes");
 dotenv.config();
 
 //Importing the app
@@ -56,6 +61,31 @@ const PORT  = process.env.PORT || 5000;
 //Connecting to the database.
 connectToDatabase();
 
+//Making the Websockets Server for the notifications.
+const server = http.createServer(app);
+const io = new Server(server, {
+    cors:{
+        origin: "http://localhost:5173",
+        methods: ["GET", "POST"]
+    }
+});
+
+//Exporting the IO so that it can be used in the cron-jobs.
+const getSocketConnections = () =>{
+    return io
+}
+
+//WebSockets Connection.
+io.on("connection",(socket)=>{
+    console.log("Connecting with client", socket.id);
+
+    socket.on("disconnect", () =>{
+        console.log("User disconnected:", socket.id);
+    });
+});
+
+//Calling Cron Jobs to run when they are shedulec
+// pushRideCompleteNotifications(getSocketConnections);
 
 //Vehicles Routes
 app.use("/api/v1.hyperride/vehicle", vehicleRoute);
@@ -84,7 +114,10 @@ app.use("/api/v1.hyperride/customers", customerRoute);
 //Service Routes
 app.use("/api/v1.hyperride/service", serviceRoute);
 
+//Analytis Routes
+app.use("/api/v1.hyperride/analytics", analyticsRoute);
+
 //Listening to the server.
-app.listen(PORT, ()=>{
+server.listen(PORT, ()=>{
     console.log(`Server is listening at the port number: ${PORT}`);
 })

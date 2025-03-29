@@ -1,5 +1,5 @@
 const express = require('express');
-const { addBookings, getLiveBookingsControllers, getAdvancedBookingsControllers, getSingleBookingController, exchangeBookingVehicleController } = require('../controllers/bookings.controllers');
+const { addBookings, getLiveBookingsControllers, getAdvancedBookingsControllers, getSingleBookingController, exchangeBookingVehicleController, getOrderDetailsController, getCompleteBookingsControllers } = require('../controllers/bookings.controllers');
 const { userAuthentication } = require('../middleware/auth.middleware');
 
 const bookingRoute = express();
@@ -14,5 +14,9 @@ bookingRoute.route("/advanced-bookings").get(userAuthentication, getAdvancedBook
 bookingRoute.route("/booking-details").get(userAuthentication, getSingleBookingController);
 
 bookingRoute.route("/exchange-vehicle").put(userAuthentication, exchangeBookingVehicleController);
+
+bookingRoute.route("/order-details").get(userAuthentication, getOrderDetailsController);
+
+bookingRoute.route("/complete-bookings").get(userAuthentication, getCompleteBookingsControllers)
 
 module.exports = bookingRoute
