@@ -172,7 +172,7 @@ const getLiveBookingsControllers = async (req, res) => {
         JOIN admin_registration e ON b.booked_by = e.id 
         JOIN pickup_details t ON b.pickup_details = t.id 
         ${whereClause}
-        ORDER BY b.id ASC
+        ORDER BY b.id DESC
         LIMIT $${queryValues.length + 1} OFFSET $${queryValues.length + 2}
 
     `;
@@ -276,7 +276,7 @@ const getAdvancedBookingsControllers = async (req, res) => {
         JOIN admin_registration e ON b.booked_by = e.id 
         JOIN pickup_details t ON b.pickup_details = t.id 
         ${whereClause}
-        ORDER BY b.id ASC
+        ORDER BY b.id DESC
         LIMIT $${queryValues.length + 1} OFFSET $${queryValues.length + 2}
     `;
 
@@ -371,7 +371,7 @@ const getCancelledBookingsControllers = async (req, res) => {
         JOIN admin_registration e ON b.booked_by = e.id 
         JOIN pickup_details t ON b.pickup_details = t.id 
         ${whereClause}
-        ORDER BY b.id ASC
+        ORDER BY b.id DESC
         LIMIT $${queryValues.length + 1} OFFSET $${queryValues.length + 2}
     `;
 
@@ -560,76 +560,6 @@ const getOrderDetailsController = async(req, res)=>{
 }
 
 
-const getCompleteBookingsControllers = async (req, res) => {
-
-    const page = parseInt(req.query.page, 10) || 1;
-    const limit = parseInt(req.query.limit, 10) || 10;
-    const offset = (page - 1) * limit;
-    const startDate = req.query.startDate ? new Date(req.query.startDate) : null;
-    const endDate = req.query.endDate ? new Date(req.query.endDate) : null;
-
-    let whereClause = "WHERE b.booking_status = $1";
-    let queryParams = ['Live Booking'];
-
-    if (startDate && endDate) {
-        whereClause += ` AND t.pickup_datetime BETWEEN $2 AND $3`;
-        queryParams.push(startDate, endDate);
-    }
-
-    const countQuery = `
-        SELECT COUNT(*) FROM bookings b 
-        JOIN customer_registration c ON b.customer_id = c.id 
-        JOIN vehicle_master v ON b.bike_id = v.id 
-        JOIN rentals_plan p ON b.plan_selected = p.id 
-        JOIN admin_registration e ON b.booked_by = e.id 
-        JOIN pickup_details t ON b.pickup_details = t.id 
-        ${whereClause}
-    `;
-
-    const getBookingsQuery = `
-        SELECT b.id, b.booking_id, b.booking_status, b.booking_time, c.id AS user_id,
-               c.user_name, c.user_mobile, v.vehicle_name, v.vehicle_number, 
-               p.rental_name, e.admin_name, t.pickup_datetime 
-        FROM bookings b 
-        JOIN customer_registration c ON b.customer_id = c.id 
-        JOIN vehicle_master v ON b.bike_id = v.id 
-        JOIN rentals_plan p ON b.plan_selected = p.id 
-        JOIN admin_registration e ON b.booked_by = e.id 
-        JOIN pickup_details t ON b.pickup_details = t.id 
-        ${whereClause} 
-        ORDER BY b.id DESC
-        LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}
-    `;
-
-    try {
-        const countResult = await pool.query(countQuery, queryParams);
-        const totalCount = parseInt(countResult.rows[0].count, 10);
-
-        queryParams.push(limit, offset);
-        const bookingsResult = await pool.query(getBookingsQuery, queryParams);
-
-        if (bookingsResult.rowCount > 0) {
-            return res.status(200).json({
-                success: true,
-                data: bookingsResult.rows,
-                totalCount,
-                currentPage: page,
-                totalPages: Math.ceil(totalCount / limit),
-            });
-        } else {
-            return res.status(404).json({
-                success: false,
-                message: "No completed bookings found",
-            });
-        }
-    } catch (error) {
-        console.error(error);
-        return res.status(500).json({
-            success: false,
-            message: `Internal Server Error: ${error.message}`,
-        });
-    }
-};
 const getCompletedBookingsControllers = async (req, res) => {
     const page = parseInt(req.query.page, 10) || 1;
     const limit = parseInt(req.query.limit, 10) || 10;
@@ -689,7 +619,7 @@ const getCompletedBookingsControllers = async (req, res) => {
         JOIN admin_registration e ON b.booked_by = e.id 
         JOIN pickup_details t ON b.pickup_details = t.id 
         ${whereClause}
-        ORDER BY b.id ASC
+        ORDER BY b.id DESC
         LIMIT $${queryValues.length + 1} OFFSET $${queryValues.length + 2}
     `;
 
@@ -919,12 +849,10 @@ module.exports = {
     getSingleBookingController,
     exchangeBookingVehicleController,
     getOrderDetailsController,
-    getCompleteBookingsControllers,
     getCancelledBookingsControllers,
-    getCompletedBookingsControllers
+    getCompletedBookingsControllers,
     postReasonCancellation,
     endBookingController
-
 }
 
 
