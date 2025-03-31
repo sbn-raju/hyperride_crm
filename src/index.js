@@ -19,6 +19,7 @@ const serviceRoute = require("./routes/services.routes");
 // const io = require("./web-sockets.js");
 const pushRideCompleteNotifications = require("./crons-jobs/PushRideCompleteNotify");
 const analyticsRoute = require("./routes/analytics.routes");
+const processingsFeesRouter = require("./routes/processing.routes");
 dotenv.config();
 
 //Importing the app
@@ -116,6 +117,9 @@ app.use("/api/v1.hyperride/service", serviceRoute);
 
 //Analytis Routes
 app.use("/api/v1.hyperride/analytics", analyticsRoute);
+
+//Processing Routes
+app.use("/api/v1.hyperride/processing", processingsFeesRouter);
 
 //Listening to the server.
 server.listen(PORT, ()=>{
