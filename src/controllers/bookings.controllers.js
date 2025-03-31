@@ -93,13 +93,44 @@ const addBookings = async(req, res)=>{
 
 
 const getLiveBookingsControllers = async (req, res) => {
-
-    // Extract page and limit from query parameters with defaults
     const page = parseInt(req.query.page, 10) || 1; 
     const limit = parseInt(req.query.limit, 10) || 10; 
-    const offset = (page - 1) * limit; 
+    const offset = (page - 1) * limit;
+    const pickupDate = req.query.pickupDate; // Expected format: YYYY-MM-DD
+    const dropDate=req.query.dropDate;
+    const rentalOption= req.query.rentalOption;
+    let vehicle = req.query.vehicle;  // This is an encoded JSON string
 
-    // Count query to get the total number of live bookings
+    if (vehicle) {
+        try {
+            vehicle = JSON.parse(decodeURIComponent(vehicle));  // Decode and parse
+        } catch (error) {
+            return res.status(400).json({ message: "Invalid vehicle format" });
+        }
+    }
+    
+    console.log(vehicle);
+    let whereClause = `WHERE b.booking_status = $1`;
+    const queryValues = ['Live Booking'];
+
+    if (pickupDate) {
+        whereClause += ` AND DATE(t.pickup_datetime) = $2`;
+        queryValues.push(pickupDate);
+    }
+    if (dropDate) {
+        whereClause += ` AND DATE(t.actual_return_datetime) = $2`;
+        queryValues.push(dropDate);
+    }
+    if (rentalOption) {
+        whereClause += ` AND p.rental_category = $2`;
+        queryValues.push(rentalOption);
+    }
+    if (vehicle) {
+        whereClause += ` AND v.vehicle_name = $2 AND v.vehicle_number = $3`;
+        queryValues.push(vehicle.name);
+        queryValues.push(vehicle.number);
+    }
+    
     const countQuery = `
         SELECT COUNT(*) FROM bookings b 
         JOIN customer_registration c ON b.customer_id = c.id 
@@ -107,33 +138,33 @@ const getLiveBookingsControllers = async (req, res) => {
         JOIN rentals_plan p ON b.plan_selected = p.id 
         JOIN admin_registration e ON b.booked_by = e.id 
         JOIN pickup_details t ON b.pickup_details = t.id 
-        WHERE b.booking_status = $1
+        ${whereClause}
     `;
-    const countQueryValues = ['Live Booking'];
 
-    // Query to fetch live bookings with pagination
     const getLiveBookingsQuery = `
         SELECT b.id, b.booking_id, b.booking_status, b.booking_time, 
                c.user_name, c.user_mobile, v.vehicle_name, v.vehicle_number, 
-               p.rental_name, e.admin_name, t.pickup_datetime 
+               p.rental_name, e.admin_name, t.pickup_datetime, t.actual_return_datetime, p.rental_category 
         FROM bookings b 
         JOIN customer_registration c ON b.customer_id = c.id 
         JOIN vehicle_master v ON b.bike_id = v.id 
         JOIN rentals_plan p ON b.plan_selected = p.id 
         JOIN admin_registration e ON b.booked_by = e.id 
         JOIN pickup_details t ON b.pickup_details = t.id 
-        WHERE b.booking_status = $1 
+        ${whereClause}
         ORDER BY b.id ASC
-        LIMIT $2 OFFSET $3
+        LIMIT $${queryValues.length + 1} OFFSET $${queryValues.length + 2}
     `;
 
     try {
-        // Execute count query
-        const countResult = await pool.query(countQuery, countQueryValues);
+        const countResult = await pool.query(countQuery, queryValues);
+        console.log(queryValues);
+        
+        console.log(countResult.rows);
+        
         const totalCount = parseInt(countResult.rows[0].count, 10);
 
-        // Execute fetch query
-        const getLiveBookingsResult = await pool.query(getLiveBookingsQuery, [...countQueryValues, limit, offset]);
+        const getLiveBookingsResult = await pool.query(getLiveBookingsQuery, [...queryValues, limit, offset]);
 
         if (getLiveBookingsResult.rowCount > 0) {
             return res.status(200).json({
@@ -146,7 +177,7 @@ const getLiveBookingsControllers = async (req, res) => {
         } else {
             return res.status(404).json({
                 success: false,
-                message: "No live bookings found",
+                message: "No live bookings found for the given filters.",
             });
         }
     } catch (error) {
@@ -158,14 +189,50 @@ const getLiveBookingsControllers = async (req, res) => {
     }
 };
 
-const getAdvancedBookingsControllers = async (req, res) => {
 
-    // Extract page and limit from query parameters with defaults
+
+const getAdvancedBookingsControllers = async (req, res) => {
     const page = parseInt(req.query.page, 10) || 1; 
     const limit = parseInt(req.query.limit, 10) || 10; 
-    const offset = (page - 1) * limit; 
+    const offset = (page - 1) * limit;
+    const pickupDate = req.query.pickupDate; // Expected format: YYYY-MM-DD
+    const dropDate = req.query.dropDate;
+    const rentalOption = req.query.rentalOption;
+    let vehicle = req.query.vehicle;  
 
-    // Count query to get the total number of live bookings
+    // Decode and parse vehicle JSON string if present
+    if (vehicle) {
+        try {
+            vehicle = JSON.parse(decodeURIComponent(vehicle));  
+        } catch (error) {
+            return res.status(400).json({ message: "Invalid vehicle format" });
+        }
+    }
+
+    console.log(vehicle);
+
+    let whereClause = `WHERE b.booking_status = $1`;
+    const queryValues = ['Advanced Booking']; // Change to Advanced Booking
+
+    if (pickupDate) {
+        whereClause += ` AND DATE(t.pickup_datetime) = $${queryValues.length + 1}`;
+        queryValues.push(pickupDate);
+    }
+    if (dropDate) {
+        whereClause += ` AND DATE(t.actual_return_datetime) = $${queryValues.length + 1}`;
+        queryValues.push(dropDate);
+    }
+    if (rentalOption) {
+        whereClause += ` AND p.rental_category = $${queryValues.length + 1}`;
+        queryValues.push(rentalOption);
+    }
+    if (vehicle) {
+        whereClause += ` AND v.vehicle_name = $${queryValues.length + 1} AND v.vehicle_number = $${queryValues.length + 2}`;
+        queryValues.push(vehicle.name);
+        queryValues.push(vehicle.number);
+    }
+
+    // Query to get total count of filtered advanced bookings
     const countQuery = `
         SELECT COUNT(*) FROM bookings b 
         JOIN customer_registration c ON b.customer_id = c.id 
@@ -173,38 +240,35 @@ const getAdvancedBookingsControllers = async (req, res) => {
         JOIN rentals_plan p ON b.plan_selected = p.id 
         JOIN admin_registration e ON b.booked_by = e.id 
         JOIN pickup_details t ON b.pickup_details = t.id 
-        WHERE b.booking_status = $1
+        ${whereClause}
     `;
-    const countQueryValues = ['Advanced Booking'];
 
-    // Query to fetch live bookings with pagination
-    const getLiveBookingsQuery = `
+    // Query to fetch paginated advanced bookings
+    const getAdvancedBookingsQuery = `
         SELECT b.id, b.booking_id, b.booking_status, b.booking_time, 
                c.user_name, c.user_mobile, v.vehicle_name, v.vehicle_number, 
-               p.rental_name, e.admin_name, t.pickup_datetime 
+               p.rental_name, e.admin_name, t.pickup_datetime, t.actual_return_datetime, p.rental_category 
         FROM bookings b 
         JOIN customer_registration c ON b.customer_id = c.id 
         JOIN vehicle_master v ON b.bike_id = v.id 
         JOIN rentals_plan p ON b.plan_selected = p.id 
         JOIN admin_registration e ON b.booked_by = e.id 
         JOIN pickup_details t ON b.pickup_details = t.id 
-        WHERE b.booking_status = $1 
+        ${whereClause}
         ORDER BY b.id ASC
-        LIMIT $2 OFFSET $3
+        LIMIT $${queryValues.length + 1} OFFSET $${queryValues.length + 2}
     `;
 
     try {
-        // Execute count query
-        const countResult = await pool.query(countQuery, countQueryValues);
+        const countResult = await pool.query(countQuery, queryValues);
         const totalCount = parseInt(countResult.rows[0].count, 10);
 
-        // Execute fetch query
-        const getLiveBookingsResult = await pool.query(getLiveBookingsQuery, [...countQueryValues, limit, offset]);
+        const getAdvancedBookingsResult = await pool.query(getAdvancedBookingsQuery, [...queryValues, limit, offset]);
 
-        if (getLiveBookingsResult.rowCount > 0) {
+        if (getAdvancedBookingsResult.rowCount > 0) {
             return res.status(200).json({
                 success: true,
-                data: getLiveBookingsResult.rows,
+                data: getAdvancedBookingsResult.rows,
                 totalCount,
                 currentPage: page,
                 totalPages: Math.ceil(totalCount / limit),
@@ -212,7 +276,102 @@ const getAdvancedBookingsControllers = async (req, res) => {
         } else {
             return res.status(404).json({
                 success: false,
-                message: "No live bookings found",
+                message: "No advanced bookings found for the given filters.",
+            });
+        }
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            success: false,
+            message: `Internal Server Error: ${error.message}`,
+        });
+    }
+};
+
+
+const getCancelledBookingsControllers = async (req, res) => {
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 10;
+    const offset = (page - 1) * limit;
+    const pickupDate = req.query.pickupDate;
+    const dropDate = req.query.dropDate;
+    const rentalOption = req.query.rentalOption;
+    let vehicle = req.query.vehicle;
+
+    if (vehicle) {
+        try {
+            vehicle = JSON.parse(decodeURIComponent(vehicle));
+        } catch (error) {
+            return res.status(400).json({ message: "Invalid vehicle format" });
+        }
+    }
+
+    console.log(vehicle);
+
+    let whereClause = `WHERE b.booking_status = $1`;
+    const queryValues = ['Cancelled Booking'];
+
+    if (pickupDate) {
+        whereClause += ` AND DATE(t.pickup_datetime) = $${queryValues.length + 1}`;
+        queryValues.push(pickupDate);
+    }
+    if (dropDate) {
+        whereClause += ` AND DATE(t.actual_return_datetime) = $${queryValues.length + 1}`;
+        queryValues.push(dropDate);
+    }
+    if (rentalOption) {
+        whereClause += ` AND p.rental_category = $${queryValues.length + 1}`;
+        queryValues.push(rentalOption);
+    }
+    if (vehicle) {
+        whereClause += ` AND v.vehicle_name = $${queryValues.length + 1} AND v.vehicle_number = $${queryValues.length + 2}`;
+        queryValues.push(vehicle.name);
+        queryValues.push(vehicle.number);
+    }
+
+    const countQuery = `
+        SELECT COUNT(*) FROM bookings b 
+        JOIN customer_registration c ON b.customer_id = c.id 
+        JOIN vehicle_master v ON b.bike_id = v.id 
+        JOIN rentals_plan p ON b.plan_selected = p.id 
+        JOIN admin_registration e ON b.booked_by = e.id 
+        JOIN pickup_details t ON b.pickup_details = t.id 
+        ${whereClause}
+    `;
+
+    const getCancelledBookingsQuery = `
+        SELECT b.id, b.booking_id, b.booking_status, b.booking_time, 
+               c.user_name, c.user_mobile, v.vehicle_name, v.vehicle_number, 
+               p.rental_name, e.admin_name, t.pickup_datetime, t.actual_return_datetime, p.rental_category 
+        FROM bookings b 
+        JOIN customer_registration c ON b.customer_id = c.id 
+        JOIN vehicle_master v ON b.bike_id = v.id 
+        JOIN rentals_plan p ON b.plan_selected = p.id 
+        JOIN admin_registration e ON b.booked_by = e.id 
+        JOIN pickup_details t ON b.pickup_details = t.id 
+        ${whereClause}
+        ORDER BY b.id ASC
+        LIMIT $${queryValues.length + 1} OFFSET $${queryValues.length + 2}
+    `;
+
+    try {
+        const countResult = await pool.query(countQuery, queryValues);
+        const totalCount = parseInt(countResult.rows[0].count, 10);
+
+        const getCancelledBookingsResult = await pool.query(getCancelledBookingsQuery, [...queryValues, limit, offset]);
+
+        if (getCancelledBookingsResult.rowCount > 0) {
+            return res.status(200).json({
+                success: true,
+                data: getCancelledBookingsResult.rows,
+                totalCount,
+                currentPage: page,
+                totalPages: Math.ceil(totalCount / limit),
+            });
+        } else {
+            return res.status(404).json({
+                success: false,
+                message: "No cancelled bookings found for the given filters.",
             });
         }
     } catch (error) {
@@ -443,6 +602,98 @@ const getCompleteBookingsControllers = async (req, res) => {
         });
     }
 };
+const getCompletedBookingsControllers = async (req, res) => {
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 10;
+    const offset = (page - 1) * limit;
+    const pickupDate = req.query.pickupDate;
+    const dropDate = req.query.dropDate;
+    const rentalOption = req.query.rentalOption;
+    let vehicle = req.query.vehicle;
+
+    if (vehicle) {
+        try {
+            vehicle = JSON.parse(decodeURIComponent(vehicle));
+        } catch (error) {
+            return res.status(400).json({ message: "Invalid vehicle format" });
+        }
+    }
+
+    let whereClause = `WHERE b.booking_status = $1`;
+    const queryValues = ['Completed Booking'];
+
+    if (pickupDate) {
+        whereClause += ` AND DATE(t.pickup_datetime) = $${queryValues.length + 1}`;
+        queryValues.push(pickupDate);
+    }
+    if (dropDate) {
+        whereClause += ` AND DATE(t.actual_return_datetime) = $${queryValues.length + 1}`;
+        queryValues.push(dropDate);
+    }
+    if (rentalOption) {
+        whereClause += ` AND p.rental_category = $${queryValues.length + 1}`;
+        queryValues.push(rentalOption);
+    }
+    if (vehicle) {
+        whereClause += ` AND v.vehicle_name = $${queryValues.length + 1} AND v.vehicle_number = $${queryValues.length + 2}`;
+        queryValues.push(vehicle.name);
+        queryValues.push(vehicle.number);
+    }
+
+    const countQuery = `
+        SELECT COUNT(*) FROM bookings b 
+        JOIN customer_registration c ON b.customer_id = c.id 
+        JOIN vehicle_master v ON b.bike_id = v.id 
+        JOIN rentals_plan p ON b.plan_selected = p.id 
+        JOIN admin_registration e ON b.booked_by = e.id 
+        JOIN pickup_details t ON b.pickup_details = t.id 
+        ${whereClause}
+    `;
+
+    const getCompletedBookingsQuery = `
+        SELECT b.id, b.booking_id, b.booking_status, b.booking_time, 
+               c.user_name, c.user_mobile, v.vehicle_name, v.vehicle_number, 
+               p.rental_name, e.admin_name, t.pickup_datetime, t.actual_return_datetime, p.rental_category 
+        FROM bookings b 
+        JOIN customer_registration c ON b.customer_id = c.id 
+        JOIN vehicle_master v ON b.bike_id = v.id 
+        JOIN rentals_plan p ON b.plan_selected = p.id 
+        JOIN admin_registration e ON b.booked_by = e.id 
+        JOIN pickup_details t ON b.pickup_details = t.id 
+        ${whereClause}
+        ORDER BY b.id ASC
+        LIMIT $${queryValues.length + 1} OFFSET $${queryValues.length + 2}
+    `;
+
+    try {
+        const countResult = await pool.query(countQuery, queryValues);
+        const totalCount = parseInt(countResult.rows[0].count, 10);
+
+        const getCompletedBookingsResult = await pool.query(getCompletedBookingsQuery, [...queryValues, limit, offset]);
+
+        if (getCompletedBookingsResult.rowCount > 0) {
+            return res.status(200).json({
+                success: true,
+                data: getCompletedBookingsResult.rows,
+                totalCount,
+                currentPage: page,
+                totalPages: Math.ceil(totalCount / limit),
+            });
+        } else {
+            return res.status(404).json({
+                success: false,
+                message: "No completed bookings found for the given filters.",
+            });
+        }
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            success: false,
+            message: `Internal Server Error: ${error.message}`,
+        });
+    }
+};
+
 
 module.exports = {
     addBookings,
@@ -451,7 +702,9 @@ module.exports = {
     getSingleBookingController,
     exchangeBookingVehicleController,
     getOrderDetailsController,
-    getCompleteBookingsControllers
+    getCompleteBookingsControllers,
+    getCancelledBookingsControllers,
+    getCompletedBookingsControllers
 }
 
 
