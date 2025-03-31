@@ -11,6 +11,17 @@ const addBookings = async(req, res)=>{
     const { actual_return_datetime, km_readings, pickup_datetime, customer_id } = req.body.values;
     console.log( actual_return_datetime, km_readings, pickup_datetime);
 
+
+    //Getting isExtended from the query.
+    const { isExtended } = req.query;
+    let isExtend = null;
+
+    if(isExtended === 'extended'){
+        isExtend = true;
+    }else{
+        isExtend = false;
+    }
+
     //Validation check
     if(!actual_return_datetime || !km_readings || !pickup_datetime){
         return res.status(400).json({
@@ -47,9 +58,18 @@ const addBookings = async(req, res)=>{
             //Getting the Current timestamp.
             const currentTimestamp = moment().tz('Asia/Kolkata').format('YYYY-MM-DD HH:mm:ss');
             // const customer_id = 1;
+            let addBookingDetailsQuery = "";
+            let addBookingDetailsValues = [];
 
-            const addBookingDetailsQuery = "INSERT INTO bookings (customer_id, bike_id, plan_selected, booked_by, pickup_details, amount_paid, amount_deposit, amount_pending, booking_time, extra_addons, created_by, updated_by, booking_status, comments, payment_mode) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id"
-            const addBookingDetailsValues = [customer_id, vehicle_selected, plan_selected, admin_id, pickup_details_id, amount_paid, deposit, amount_pending, currentTimestamp, addonsString, admin_id, admin_id, booking_type, comments, payment_mode] 
+            if(isExtend){
+                addBookingDetailsQuery = "INSERT INTO bookings (customer_id, bike_id, plan_selected, booked_by, pickup_details, amount_paid, amount_deposit, amount_pending, booking_time, extra_addons, created_by, updated_by, booking_status, comments, payment_mode, is_extended, extended_details) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING id"
+                addBookingDetailsValues = [customer_id, vehicle_selected, plan_selected, admin_id, pickup_details_id, amount_paid, deposit, amount_pending, currentTimestamp, addonsString, admin_id, admin_id, booking_type, comments, payment_mode, isExtend, booking_id] 
+            }else{
+                addBookingDetailsQuery = "INSERT INTO bookings (customer_id, bike_id, plan_selected, booked_by, pickup_details, amount_paid, amount_deposit, amount_pending, booking_time, extra_addons, created_by, updated_by, booking_status, comments, payment_mode, is_extended) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING id"
+                addBookingDetailsValues = [customer_id, vehicle_selected, plan_selected, admin_id, pickup_details_id, amount_paid, deposit, amount_pending, currentTimestamp, addonsString, admin_id, admin_id, booking_type, comments, payment_mode, isExtend] 
+            }
+
+
              
             const addBookingDetailsResult = await pool.query(addBookingDetailsQuery, addBookingDetailsValues);
             if(addBookingDetailsResult.rowCount != 0){
@@ -123,7 +143,7 @@ const getLiveBookingsControllers = async (req, res) => {
         JOIN admin_registration e ON b.booked_by = e.id 
         JOIN pickup_details t ON b.pickup_details = t.id 
         WHERE b.booking_status = $1 
-        ORDER BY b.id ASC
+        ORDER BY b.id DESC
         LIMIT $2 OFFSET $3
     `;
 
@@ -358,10 +378,16 @@ const getOrderDetailsController = async(req, res)=>{
     try {
         const getOrderDetailsResult = await pool.query(getOrderDetailsQuery, getOrderDetailsValues);
 
+        console.log(getOrderDetailsResult.rows);
         if(getOrderDetailsResult.rowCount != 0){
             return res.status(200).json({
                 success: true,
                 data: getOrderDetailsResult.rows
+            })
+        }else{
+            return res.status(400).json({
+                success: true,
+                message: "No order details found for this order id"
             })
         }
     } catch (error) {
@@ -375,6 +401,7 @@ const getOrderDetailsController = async(req, res)=>{
 
 
 const getCompleteBookingsControllers = async (req, res) => {
+
     const page = parseInt(req.query.page, 10) || 1;
     const limit = parseInt(req.query.limit, 10) || 10;
     const offset = (page - 1) * limit;
@@ -400,7 +427,7 @@ const getCompleteBookingsControllers = async (req, res) => {
     `;
 
     const getBookingsQuery = `
-        SELECT b.id, b.booking_id, b.booking_status, b.booking_time, 
+        SELECT b.id, b.booking_id, b.booking_status, b.booking_time, c.id AS user_id,
                c.user_name, c.user_mobile, v.vehicle_name, v.vehicle_number, 
                p.rental_name, e.admin_name, t.pickup_datetime 
         FROM bookings b 
@@ -410,7 +437,7 @@ const getCompleteBookingsControllers = async (req, res) => {
         JOIN admin_registration e ON b.booked_by = e.id 
         JOIN pickup_details t ON b.pickup_details = t.id 
         ${whereClause} 
-        ORDER BY b.id ASC
+        ORDER BY b.id DESC
         LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}
     `;
 
@@ -444,6 +471,195 @@ const getCompleteBookingsControllers = async (req, res) => {
     }
 };
 
+
+//This API will capture the reason for the cancellation of the application.
+const postReasonCancellation = async(req, res)=>{
+
+    //Getting the booking id from the query (booking_id).
+    const { booking_id } = req.query;
+
+    //Get the reason from the body.
+    const { reason } = req.body;
+
+    //Validation Check.
+    if(!booking_id || !reason){
+        return res.status(400).json({
+            success: false,
+            message: "Booking Id is not present"
+        })
+    }
+
+    //Reason for the Cancellation.
+    const postReasonQuery = "WITH updated_bookings AS (UPDATE bookings SET reason_for_cancel = $1, booking_status = $2 WHERE id = $3 RETURNING bike_id) UPDATE vehicle_master SET vehicle_isavailable = $4 WHERE id IN (SELECT bike_id FROM updated_bookings) RETURNING id";
+    const postReasonValues = [reason, "Cancelled Booking", booking_id, true];
+    
+    try {
+        const postReasonResult = await pool.query(postReasonQuery, postReasonValues);
+        console.log(postReasonResult.rows);
+        if(postReasonResult.rowCount != 0){
+            return res.status(200).json({
+                success: true,
+                message: "Reason is added successfully"
+            })
+        }
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            success: false,
+            message: `Internal Server Error: ${error.message}`,
+        });
+    }
+}
+
+
+//This controller will handle the extenstion of the particualar bookings.
+
+// actual_return_datetime : "2025-03-31T02:00"
+// addons : []
+// advance_amount: 0
+// amount_paid: 1299
+// booking_id: 29
+// comments:  ""
+// coupons_id: ""
+// customer_id :  28
+// pickup_datetime :  "2025-03-30T14:00"
+// plan_category :  "Weekend Plans"
+// plan_selected :  8
+// total_amount_paid :  0
+
+const putExtendBookingController = async(req, res)=>{
+
+    //Getting the details from the body and validated it.
+    const {actual_return_datetime, amount_paid, booking_id, customer_id, pickup_datetime, plan_selected } = req.body;
+
+    //Get User details from the middleware.
+    const admin_id = req.user.id;
+
+    //Validation check
+    if(!customer_id || !booking_id){
+        return res.status(200).json({
+            success: false,
+            message: "Booking Id and Customer Id not present"
+        })
+    }
+
+    //Queries to add the extended.
+    const addExtendedBookingQuery = "INSERT INTO bookings_extend (user_id, booking_id, amount_paid, actual_return_timestamp, plan_selected, created_by, updated_by ) VALUES ($1, $2, $3, $4, $5, $6, $7)";
+    const addExtendedBookingValue = [customer_id, booking_id, amount_paid, actual_return_datetime, plan_selected, admin_id, admin_id];
+
+    try {
+        const addExtendedBookingResult = await pool.query(addExtendedBookingQuery, addExtendedBookingValue);
+        if(addExtendedBookingResult.rowCount != 0){
+            const updateOriginalOrderStatus = "UPDATE bookings SET is_extended = $1, extended_till = $2 WHERE id = $3 RETURNING id";
+            const updateOriginalOrderStatusResult = await pool.query(updateOriginalOrderStatus, [true, actual_return_datetime, booking_id]);
+
+            if(updateOriginalOrderStatusResult.rowCount != 0){
+                return res.status(200).json({
+                    success: false,
+                    message: "Extenstion added uccessfully"
+                });
+            }
+        }
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            success: false,
+            message: `Internal Server Error: ${error.message}`,
+        });
+    }
+
+}
+
+
+
+//This Controller will handle the affect of te complete booking
+const endBookingController = async(req, res)=>{
+
+    //Getting the booking id from the request Query.
+    const { booking_id } = req.query;
+
+    //Getting the admin id from the middleware.
+    const admin_id = req.user.id;
+
+    //Getting the return detail from the Query.
+    const { testRide_by, vehicle_condition, damage, repair_cost, amount_collected, deposit_return, km_readings } = req.body;
+
+
+    //Validation check of the booking id.
+    if(!booking_id){
+        return res.status(400).json({
+            success: false,
+            message: "Booking is not present"
+        })
+    }
+
+    //Validation check for the return details.
+    if(!testRide_by || !damage || !amount_collected || !deposit_return || !km_readings){
+        return res.status(400).json({
+            success: false,
+            message: "Return form is not filled"
+        })
+    }
+
+    //Now get all the details of the booking from the datbase and proceed with updating the vehicle and booking status.
+    const getBikeDetailsQuery = "SELECT bike_id FROM bookings WHERE id = $1";
+    const getBikeDetailsValue = [booking_id];
+
+    try {
+        const getBikeDetailsResult  = await pool.query(getBikeDetailsQuery, getBikeDetailsValue);
+        if(getBikeDetailsResult.rowCount != 0){
+            //Once the bike details is got now lets insert the return form details into the database.
+            //Query to insert the return form details.
+            const addReturnFormQuery = "INSERT INTO return_details (testride_by, deposit_return, amount_collected, repair_cost, vehicle_condition, damage, updated_by, created_by, km_readings) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id";
+            const addReturnFormValue = [testRide_by, deposit_return, amount_collected, amount_collected, repair_cost, vehicle_condition, damage, admin_id, admin_id, km_readings];
+
+            const addReturnFormResult = await pool.query(addReturnFormQuery, addReturnFormValue);
+            if(addReturnFormResult.rowCount == 0){
+                return res.status(400).json({
+                    success: false,
+                    message: "Something went wrong!"
+                })
+            }
+
+            //Getting the vehicle id which is being booked under this order id.
+            const vehicle_id = getBikeDetailsResult?.rows[0]?.bike_id;
+            
+            //Returning from here if the vehicle is NULL or UNDEFINE.
+            if(!vehicle_id){
+                return res.status(400).json({
+                    success: false,
+                    message: "Vechile Id is not present"
+                })
+            }
+
+            //Query to update the status of the vehicle and the booking of the ride.
+            const updateBookingStatusQuery = "UPDATE bookings SET booking_status = $1 WHERE id = $2";
+            const updateBookingStatusValue = ["Completed Booking", booking_id];
+            
+            const updateVehicleStatusQuery = "UPDATE vehicle_master SET vehicle_isavailable = $1 WHERE id = $2";
+            const updateVehicelStatusValue = [true, vehicle_id];
+
+            //Now Calling all the updates.
+            const updateBookingStatusResult = await pool.query(updateBookingStatusQuery, updateBookingStatusValue);
+
+            const updateVehicleStatusResult = await pool.query(updateVehicleStatusQuery, updateVehicelStatusValue);
+
+            if(updateBookingStatusResult.rowCount != 0 && updateVehicleStatusResult.rowCount != 0){
+                return res.status(200).json({
+                    success: true,
+                    message: "Ride is finished successfully."
+                })
+            }
+        }
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            success: false,
+            message: `Internal Server Error: ${error.message}`,
+        });
+    }
+}
+
 module.exports = {
     addBookings,
     getLiveBookingsControllers,
@@ -451,7 +667,9 @@ module.exports = {
     getSingleBookingController,
     exchangeBookingVehicleController,
     getOrderDetailsController,
-    getCompleteBookingsControllers
+    getCompleteBookingsControllers,
+    postReasonCancellation,
+    endBookingController
 }
 
 

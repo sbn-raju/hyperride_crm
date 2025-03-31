@@ -23,7 +23,7 @@ const connectToDatabase = async () => {
         const connection = await pool.connect();
         console.log(`Server is successfully connected to ${connection.database} database`);
     } catch (error) {
-        console.log(error);
+        console.log(`Database connection error: ${error}`);
     }
 }
 
