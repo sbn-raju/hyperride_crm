@@ -1,5 +1,7 @@
 const express = require('express');
-const { addBookings, getLiveBookingsControllers, getAdvancedBookingsControllers, getSingleBookingController, exchangeBookingVehicleController, getOrderDetailsController, getCompleteBookingsControllers, postReasonCancellation } = require('../controllers/bookings.controllers');
+const { addBookings, getCompletedBookingsControllers,getCancelledBookingsControllers,getLiveBookingsControllers, getAdvancedBookingsControllers, getSingleBookingController, exchangeBookingVehicleController, getOrderDetailsController, getCompleteBookingsControllers } = require('../controllers/bookings.controllers');
+
+
 const { userAuthentication } = require('../middleware/auth.middleware');
 
 const bookingRoute = express();
@@ -11,14 +13,21 @@ bookingRoute.route("/live-bookings").get(userAuthentication, getLiveBookingsCont
 
 bookingRoute.route("/advanced-bookings").get(userAuthentication, getAdvancedBookingsControllers);
 
+bookingRoute.route("/cancel-bookings").get(userAuthentication, getCancelledBookingsControllers);
+
 bookingRoute.route("/booking-details").get(userAuthentication, getSingleBookingController);
 
 bookingRoute.route("/exchange-vehicle").put(userAuthentication, exchangeBookingVehicleController);
 
 bookingRoute.route("/order-details").get(userAuthentication, getOrderDetailsController);
 
+// bookingRoute.route("/Live-bookings").get(userAuthentication, getCompleteBookingsControllers);
+
+// bookingRoute.route("/completed-bookings").get(userAuthentication, getCompletedBookingsControllers);
+
 bookingRoute.route("/complete-bookings").get(userAuthentication, getCompleteBookingsControllers);
 
 bookingRoute.route("/reason-cancel").post(userAuthentication, postReasonCancellation);
+
 
 module.exports = bookingRoute
