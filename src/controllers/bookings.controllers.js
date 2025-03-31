@@ -1,15 +1,18 @@
 const { pool } = require("../database/db.connect.js");
 const moment = require('moment-timezone');
+const ExcelJS = require('exceljs');
+const fs = require('fs');
+const path = require('path');
+const nodemailer = require("nodemailer");
+require("dotenv").config();
 
-
-
-const addBookings = async(req, res)=>{
+const addBookings = async (req, res) => {
 
     await pool.query('BEGIN');
     //Getting all the information from the request.
     //destructuring the pickup details,
     const { actual_return_datetime, km_readings, pickup_datetime, customer_id } = req.body.values;
-    console.log( actual_return_datetime, km_readings, pickup_datetime);
+    console.log(actual_return_datetime, km_readings, pickup_datetime);
 
 
     //Getting isExtended from the query.
@@ -23,7 +26,7 @@ const addBookings = async(req, res)=>{
     }
 
     //Validation check
-    if(!actual_return_datetime || !km_readings || !pickup_datetime){
+    if (!actual_return_datetime || !km_readings || !pickup_datetime) {
         return res.status(400).json({
             success: false,
             message: "Pickup details required"
@@ -32,10 +35,10 @@ const addBookings = async(req, res)=>{
 
 
     //Destructuring the vehcile details , plan details and the payment details.
-    const {booking_type, plan_selected, vehicle_category, engine_type, vehicle_selected, addons, amount_paid, deposit, total_amount_paid, comments, payment_mode } = req.body.values;
-    
+    const { booking_type, plan_selected, vehicle_category, engine_type, vehicle_selected, addons, amount_paid, deposit, total_amount_paid, comments, payment_mode } = req.body.values;
 
-    
+
+
     //Getting the admin id from the middleware.
     const admin_id = req.user.id;
 
@@ -45,10 +48,10 @@ const addBookings = async(req, res)=>{
 
     try {
         const addPickupDetailsResult = await pool.query(addPickupDetailsQuery, addPickupDetailsValues);
-        if(addPickupDetailsResult.rowCount != 0){
+        if (addPickupDetailsResult.rowCount != 0) {
 
             const pickup_details_id = addPickupDetailsResult.rows[0].id
-            
+
             //Query to add the booking details like vehicle, plan and paymnet details.
 
             //firstly converting the addons id array into the string to save it in the database.
@@ -70,9 +73,13 @@ const addBookings = async(req, res)=>{
             }
 
 
-             
+
+            const addBookingDetailsQuery = "INSERT INTO bookings (customer_id, bike_id, plan_selected, booked_by, pickup_details, amount_paid, amount_deposit, amount_pending, booking_time, extra_addons, created_by, updated_by, booking_status, comments, payment_mode) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id"
+            const addBookingDetailsValues = [customer_id, vehicle_selected, plan_selected, admin_id, pickup_details_id, amount_paid, deposit, amount_pending, currentTimestamp, addonsString, admin_id, admin_id, booking_type, comments, payment_mode]
+
+
             const addBookingDetailsResult = await pool.query(addBookingDetailsQuery, addBookingDetailsValues);
-            if(addBookingDetailsResult.rowCount != 0){
+            if (addBookingDetailsResult.rowCount != 0) {
 
                 const booking_details_id = addBookingDetailsResult.rows[0].id;
 
@@ -92,7 +99,7 @@ const addBookings = async(req, res)=>{
 
                 const updateBookingIdResult = await pool.query(updateBookingIdQuery, updateBookingIdValues);
 
-                if(updateBookingIdResult.rowCount != 0 && updateVehicleStatusResult.rowCount != 0){
+                if (updateBookingIdResult.rowCount != 0 && updateVehicleStatusResult.rowCount != 0) {
                     await pool.query('COMMIT');
                     return res.status(201).json({
                         success: true,
@@ -107,18 +114,18 @@ const addBookings = async(req, res)=>{
         return res.status(500).json({
             success: false,
             message: `Internal Server Error: ${error}`
-        }) 
+        })
     }
 }
 
 
 const getLiveBookingsControllers = async (req, res) => {
-    const page = parseInt(req.query.page, 10) || 1; 
-    const limit = parseInt(req.query.limit, 10) || 10; 
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 10;
     const offset = (page - 1) * limit;
     const pickupDate = req.query.pickupDate; // Expected format: YYYY-MM-DD
-    const dropDate=req.query.dropDate;
-    const rentalOption= req.query.rentalOption;
+    const dropDate = req.query.dropDate;
+    const rentalOption = req.query.rentalOption;
     let vehicle = req.query.vehicle;  // This is an encoded JSON string
 
     if (vehicle) {
@@ -128,7 +135,7 @@ const getLiveBookingsControllers = async (req, res) => {
             return res.status(400).json({ message: "Invalid vehicle format" });
         }
     }
-    
+
     console.log(vehicle);
     let whereClause = `WHERE b.booking_status = $1`;
     const queryValues = ['Live Booking'];
@@ -150,7 +157,7 @@ const getLiveBookingsControllers = async (req, res) => {
         queryValues.push(vehicle.name);
         queryValues.push(vehicle.number);
     }
-    
+
     const countQuery = `
         SELECT COUNT(*) FROM bookings b 
         JOIN customer_registration c ON b.customer_id = c.id 
@@ -180,9 +187,9 @@ const getLiveBookingsControllers = async (req, res) => {
     try {
         const countResult = await pool.query(countQuery, queryValues);
         console.log(queryValues);
-        
+
         console.log(countResult.rows);
-        
+
         const totalCount = parseInt(countResult.rows[0].count, 10);
 
         const getLiveBookingsResult = await pool.query(getLiveBookingsQuery, [...queryValues, limit, offset]);
@@ -213,18 +220,18 @@ const getLiveBookingsControllers = async (req, res) => {
 
 
 const getAdvancedBookingsControllers = async (req, res) => {
-    const page = parseInt(req.query.page, 10) || 1; 
-    const limit = parseInt(req.query.limit, 10) || 10; 
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 10;
     const offset = (page - 1) * limit;
     const pickupDate = req.query.pickupDate; // Expected format: YYYY-MM-DD
     const dropDate = req.query.dropDate;
     const rentalOption = req.query.rentalOption;
-    let vehicle = req.query.vehicle;  
+    let vehicle = req.query.vehicle;
 
     // Decode and parse vehicle JSON string if present
     if (vehicle) {
         try {
-            vehicle = JSON.parse(decodeURIComponent(vehicle));  
+            vehicle = JSON.parse(decodeURIComponent(vehicle));
         } catch (error) {
             return res.status(400).json({ message: "Invalid vehicle format" });
         }
@@ -404,13 +411,13 @@ const getCancelledBookingsControllers = async (req, res) => {
     }
 };
 
-const getSingleBookingController = async(req, res)=>{
+const getSingleBookingController = async (req, res) => {
 
     //Getting the id from the query.
     const { booking_id } = req.query;
 
     //Validation check.
-    if(!booking_id){
+    if (!booking_id) {
         return res.status(200).json({
             success: false,
             message: "All Fields are required"
@@ -438,7 +445,7 @@ const getSingleBookingController = async(req, res)=>{
 
         bookingDetails[addonKey] = getAddonsDetails.rows;
 
-        if(getSingleResult.rowCount != 0){
+        if (getSingleResult.rowCount != 0) {
             return res.status(200).json({
                 success: true,
                 data: bookingDetails
@@ -457,17 +464,17 @@ const getSingleBookingController = async(req, res)=>{
 
 //Updating the exisiting bookings.
 //This API will handle the exchanges the booking vehicle by making the other available.
-const exchangeBookingVehicleController = async(req, res)=>{
+const exchangeBookingVehicleController = async (req, res) => {
 
     //Getting the details from the the request.
-    const {booking_id, vehicle_number, vehicle_selected } = req.body;
+    const { booking_id, vehicle_number, vehicle_selected } = req.body;
     //vehicle_id is the old bike which is to be exchanged.
     //vehicle_selected is new selected vehicle.
 
-    console.log(typeof(vehicle_selected));
+    console.log(typeof (vehicle_selected));
 
     //Validation Check
-    if(!booking_id || !vehicle_number || !vehicle_selected){
+    if (!booking_id || !vehicle_number || !vehicle_selected) {
         return res.status(200).json({
             success: false,
             message: "All Id are required"
@@ -481,7 +488,7 @@ const exchangeBookingVehicleController = async(req, res)=>{
 
     try {
         const exchangeVehicleResult = await pool.query(exchangeVehicleQuery, exchangeVehicleValue);
-        if(exchangeVehicleResult.rowCount != 0){
+        if (exchangeVehicleResult.rowCount != 0) {
 
             //This is to update the avilable of the vehicle which is previously selected to false.
             const updateVehicleStatusQuery = "UPDATE vehicle_master SET vehicle_isavailable = $1 WHERE id = $2";
@@ -497,7 +504,7 @@ const exchangeBookingVehicleController = async(req, res)=>{
             const updateVehicleAvailableResult = await pool.query(updateVehicleAvailableQuery, updateVehicleAvailableValue);
 
 
-            if(updateVehicleStatusResult.rowCount != 0 && updateVehicleAvailableResult.rowCount != 0){
+            if (updateVehicleStatusResult.rowCount != 0 && updateVehicleAvailableResult.rowCount != 0) {
                 //This is the response.
                 return res.status(200).json({
                     success: false,
@@ -517,13 +524,13 @@ const exchangeBookingVehicleController = async(req, res)=>{
 
 
 //This APIs Will get the booking details of the given order.
-const getOrderDetailsController = async(req, res)=>{
+const getOrderDetailsController = async (req, res) => {
 
     //Getting the Order Id from the query.
     const { order_id } = req.query;
 
     //Validation Check
-    if(!order_id){
+    if (!order_id) {
         return res.status(400).json({
             success: false,
             message: "Order id is not present"
@@ -538,8 +545,11 @@ const getOrderDetailsController = async(req, res)=>{
     try {
         const getOrderDetailsResult = await pool.query(getOrderDetailsQuery, getOrderDetailsValues);
 
+
+        if (getOrderDetailsResult.rowCount != 0) {
+
         console.log(getOrderDetailsResult.rows);
-        if(getOrderDetailsResult.rowCount != 0){
+
             return res.status(200).json({
                 success: true,
                 data: getOrderDetailsResult.rows
@@ -652,6 +662,115 @@ const getCompletedBookingsControllers = async (req, res) => {
     }
 };
 
+const getFilteredBookingsController = async (req, res) => {
+    const { startDate, endDate } = req.query;
+
+    if (!startDate || !endDate) {
+        return res.status(400).json({ success: false, message: "Start date and end date are required." });
+    }
+
+    const query = `
+        SELECT 
+            t.pickup_datetime::DATE AS booking_date,
+            TO_CHAR(t.pickup_datetime, 'HH24:MI:SS') AS start_time,
+            EXTRACT(EPOCH FROM (t.actual_return_datetime - t.pickup_datetime)) / 3600 AS duration,
+            b.amount_paid AS total_price
+        FROM bookings b 
+        JOIN pickup_details t ON b.pickup_details = t.id 
+        WHERE t.pickup_datetime::DATE BETWEEN $1 AND $2
+        ORDER BY t.pickup_datetime ASC;
+    `;
+
+    try {
+        const result = await pool.query(query, [startDate, endDate]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, message: "No data found for the given date range." });
+        }
+
+        // Create Excel workbook
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet("Sales Report");
+
+        // Define column headers
+        worksheet.columns = [
+            { header: "Booking Date", key: "booking_date", width: 15 },
+            { header: "Start Time (hrs)", key: "start_time", width: 15 },
+            { header: "Duration (hrs)", key: "duration", width: 15 },
+            { header: "Total Price", key: "total_price", width: 15 }
+        ];
+
+        // Add data to the worksheet
+        result.rows.forEach(row => {
+            worksheet.addRow({
+                booking_date: row.booking_date,
+                start_time: row.start_time,
+                duration: row.duration ? Number(row.duration).toFixed(2) : "0.00",
+                total_price: row.total_price
+            });
+        });
+
+        // Ensure reports directory exists
+        const reportsDir = path.join(__dirname, "../reports");
+        if (!fs.existsSync(reportsDir)) {
+            fs.mkdirSync(reportsDir, { recursive: true });
+        }
+
+        // Generate filename with formatted date
+        const startDateFormatted = moment(startDate).format("DD-MM-YYYY");
+        const filePath = path.join(reportsDir, `sales_report_${startDateFormatted}.xlsx`);
+
+        // Save Excel file
+        await workbook.xlsx.writeFile(filePath);
+
+        // Send email with the file attached
+        await sendEmailWithAttachment(filePath);
+
+        return res.status(200).json({
+            success: true,
+            message: "Excel file generated and sent via email successfully",
+            downloadLink: `http://localhost:5000/reports/sales_report_${startDateFormatted}.xlsx`
+        });
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ success: false, message: `Internal Server Error: ${error.message}` });
+    }
+};
+
+// 📌 Function to send email with attachment
+const sendEmailWithAttachment = async (filePath) => {
+    try {
+        // Configure Nodemailer transport
+        const transporter = nodemailer.createTransport({
+            service: "gmail",
+            auth: {
+                user: process.env.VERIFICATION_USER_EMAIL, // Now sender
+                pass: process.env.VERIFICATION_USER_PASSWORD,
+            },
+        });
+
+        // Email options
+        const mailOptions = {
+            from: process.env.VERIFICATION_USER_EMAIL, // Sender email
+            to: process.env.MASTER_EMAIL, // Receiver email
+            subject: "Sales Report - HyperRide",
+            text: "Please find the attached sales report.",
+            attachments: [
+                {
+                    filename: path.basename(filePath), // Extract file name
+                    path: filePath,
+                },
+            ],
+        };
+
+        // Send email
+        await transporter.sendMail(mailOptions);
+        console.log("✅ Email sent successfully!");
+    } catch (error) {
+        console.error("❌ Error sending email:", error);
+    }
+};
 
 
 //This API will capture the reason for the cancellation of the application.
@@ -851,8 +970,10 @@ module.exports = {
     getOrderDetailsController,
     getCancelledBookingsControllers,
     getCompletedBookingsControllers,
+    getFilteredBookingsController
     postReasonCancellation,
     endBookingController
+
 }
 
 
