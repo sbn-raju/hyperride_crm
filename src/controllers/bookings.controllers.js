@@ -61,16 +61,16 @@ const addBookings = async (req, res) => {
             //Getting the Current timestamp.
             const currentTimestamp = moment().tz('Asia/Kolkata').format('YYYY-MM-DD HH:mm:ss');
             // const customer_id = 1;
-            let addBookingDetailsQuery = "";
-            let addBookingDetailsValues = [];
+            // let addBookingDetailsQuery = "";
+            // let addBookingDetailsValues = [];
 
-            if(isExtend){
-                addBookingDetailsQuery = "INSERT INTO bookings (customer_id, bike_id, plan_selected, booked_by, pickup_details, amount_paid, amount_deposit, amount_pending, booking_time, extra_addons, created_by, updated_by, booking_status, comments, payment_mode, is_extended, extended_details) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING id"
-                addBookingDetailsValues = [customer_id, vehicle_selected, plan_selected, admin_id, pickup_details_id, amount_paid, deposit, amount_pending, currentTimestamp, addonsString, admin_id, admin_id, booking_type, comments, payment_mode, isExtend, booking_id] 
-            }else{
-                addBookingDetailsQuery = "INSERT INTO bookings (customer_id, bike_id, plan_selected, booked_by, pickup_details, amount_paid, amount_deposit, amount_pending, booking_time, extra_addons, created_by, updated_by, booking_status, comments, payment_mode, is_extended) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING id"
-                addBookingDetailsValues = [customer_id, vehicle_selected, plan_selected, admin_id, pickup_details_id, amount_paid, deposit, amount_pending, currentTimestamp, addonsString, admin_id, admin_id, booking_type, comments, payment_mode, isExtend] 
-            }
+            // if(isExtend){
+            //     addBookingDetailsQuery = "INSERT INTO bookings (customer_id, bike_id, plan_selected, booked_by, pickup_details, amount_paid, amount_deposit, amount_pending, booking_time, extra_addons, created_by, updated_by, booking_status, comments, payment_mode, is_extended, extended_details) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING id"
+            //     addBookingDetailsValues = [customer_id, vehicle_selected, plan_selected, admin_id, pickup_details_id, amount_paid, deposit, amount_pending, currentTimestamp, addonsString, admin_id, admin_id, booking_type, comments, payment_mode, isExtend, booking_id] 
+            // }else{
+            //     addBookingDetailsQuery = "INSERT INTO bookings (customer_id, bike_id, plan_selected, booked_by, pickup_details, amount_paid, amount_deposit, amount_pending, booking_time, extra_addons, created_by, updated_by, booking_status, comments, payment_mode, is_extended) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING id"
+            //     addBookingDetailsValues = [customer_id, vehicle_selected, plan_selected, admin_id, pickup_details_id, amount_paid, deposit, amount_pending, currentTimestamp, addonsString, admin_id, admin_id, booking_type, comments, payment_mode, isExtend] 
+            // }
 
 
 
@@ -664,6 +664,7 @@ const getCompletedBookingsControllers = async (req, res) => {
 
 const getFilteredBookingsController = async (req, res) => {
     const { startDate, endDate } = req.query;
+    console.log(startDate, endDate);
 
     if (!startDate || !endDate) {
         return res.status(400).json({ success: false, message: "Start date and end date are required." });
@@ -684,7 +685,7 @@ const getFilteredBookingsController = async (req, res) => {
     try {
         const result = await pool.query(query, [startDate, endDate]);
 
-        if (result.rows.length === 0) {
+        if (result?.rows?.length === 0) {
             return res.status(404).json({ success: false, message: "No data found for the given date range." });
         }
 
@@ -701,7 +702,7 @@ const getFilteredBookingsController = async (req, res) => {
         ];
 
         // Add data to the worksheet
-        result.rows.forEach(row => {
+        result?.rows?.forEach(row => {
             worksheet.addRow({
                 booking_date: row.booking_date,
                 start_time: row.start_time,
@@ -970,10 +971,9 @@ module.exports = {
     getOrderDetailsController,
     getCancelledBookingsControllers,
     getCompletedBookingsControllers,
-    getFilteredBookingsController
+    getFilteredBookingsController,
     postReasonCancellation,
     endBookingController
-
 }
 
 
