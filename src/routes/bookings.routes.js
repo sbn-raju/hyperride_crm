@@ -1,6 +1,6 @@
 const express = require('express');
 
-const { addBookings,endBookingController,getFilteredBookingsController, getCompletedBookingsControllers,getCancelledBookingsControllers,getLiveBookingsControllers, getAdvancedBookingsControllers, getSingleBookingController, exchangeBookingVehicleController, getOrderDetailsController, postReasonCancellation } = require('../controllers/bookings.controllers');
+const { putExtendBookingController,addBookings,endBookingController,getFilteredBookingsController, getCompletedBookingsControllers,getCancelledBookingsControllers,getLiveBookingsControllers, getAdvancedBookingsControllers, getSingleBookingController, exchangeBookingVehicleController, getOrderDetailsController, postReasonCancellation } = require('../controllers/bookings.controllers');
 
 const { userAuthentication } = require('../middleware/auth.middleware');
 
@@ -28,6 +28,7 @@ bookingRoute.route("/sales").post(userAuthentication,getFilteredBookingsControll
 bookingRoute.route("/endbooking").post(userAuthentication,endBookingController);
 bookingRoute.route("/reason-cancel").post(userAuthentication, postReasonCancellation);
 
+bookingRoute.route("/extend-form").post(userAuthentication, putExtendBookingController);
 
 
 module.exports = bookingRoute
