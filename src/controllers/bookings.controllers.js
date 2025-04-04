@@ -4,7 +4,8 @@ const ExcelJS = require('exceljs');
 const fs = require('fs');
 const path = require('path');
 const nodemailer = require("nodemailer");
-const decryptData=require("../helpers/decrypter.js");
+const decryptData = require("../helpers/decrypter.js");
+
 require("dotenv").config();
 
 const addBookings = async (req, res) => {
@@ -36,7 +37,7 @@ const addBookings = async (req, res) => {
 
 
     //Destructuring the vehcile details , plan details and the payment details.
-    const { booking_type, plan_selected, vehicle_category, engine_type, vehicle_selected, addons, amount_paid, deposit, total_amount_paid, comments, payment_mode,advance_amount } = req.body.values;
+    const { booking_type, plan_selected, vehicle_category, engine_type, vehicle_selected, addons, amount_paid, deposit, total_amount_paid, comments, payment_mode, advance_amount } = req.body.values;
 
 
 
@@ -46,7 +47,7 @@ const addBookings = async (req, res) => {
     //Query to save the pickup details.
     const addPickupDetailsQuery = "INSERT INTO pickup_details (actual_return_datetime, km_readings, pickup_datetime, updated_by, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING id";
     const addPickupDetailsValues = [actual_return_datetime, km_readings, pickup_datetime, admin_id, admin_id];
-    const advancedsubval=total_amount_paid-advance_amount;    
+    const advancedsubval = total_amount_paid - advance_amount;
     try {
         const addPickupDetailsResult = await pool.query(addPickupDetailsQuery, addPickupDetailsValues);
         if (addPickupDetailsResult.rowCount != 0) {
@@ -433,13 +434,16 @@ const getSingleBookingController = async (req, res) => {
 
     try {
         const getSingleResult = await pool.query(getSingleQuery, getSingleValue);
-         
+
         if (getSingleResult.rows.length > 0) {
             let bookingData = getSingleResult.rows[0];
-    
+
             // Decrypt the aadhar number before sending response
             bookingData.user_adhaar_number = await decryptData(bookingData.user_adhaar_number);
-    
+            bookingData.actual_return_datetime = moment(bookingData.actual_return_datetime)
+                .tz("Asia/Kolkata") // or your preferred timezone
+                .format("YYYY-MM-DD HH:mm:ss"); // You can change the format if needed
+                console.log(bookingData.actual_return_datetime);
         }
         //Getting Addons Details Also.
         const addonsString = getSingleResult.rows[0].extra_addons;
@@ -840,7 +844,7 @@ const postReasonCancellation = async (req, res) => {
 const putExtendBookingController = async (req, res) => {
 
     //Getting the details from the body and validated it.
-    const { actual_return_datetime, amount_paid, booking_id, customer_id, pickup_datetime, plan_selected,extended_return_datetime } = req.body;
+    const { actual_return_datetime, amount_paid, booking_id, customer_id, pickup_datetime, plan_selected, extended_return_datetime } = req.body;
 
     //Get User details from the middleware.
     const admin_id = req.user.id;
@@ -855,25 +859,25 @@ const putExtendBookingController = async (req, res) => {
 
     //Queries to add the extended.
     const addExtendedBookingQuery = "INSERT INTO bookings_extend (user_id, booking_id, amount_paid, actual_return_timestamp, plan_selected, created_by, updated_by,extended_timestamp) VALUES ($1, $2, $3, $4, $5, $6, $7,$8)";
-    const addExtendedBookingValue = [customer_id, booking_id, amount_paid, actual_return_datetime, plan_selected, admin_id, admin_id,extended_return_datetime];
+    const addExtendedBookingValue = [customer_id, booking_id, amount_paid, actual_return_datetime, plan_selected, admin_id, admin_id, extended_return_datetime];
 
     try {
         const addExtendedBookingResult = await pool.query(addExtendedBookingQuery, addExtendedBookingValue);
         if (addExtendedBookingResult.rowCount != 0) {
             const getExistingAddonsQuery = "SELECT extra_addons FROM bookings WHERE id = $1";
             const existingAddonsResult = await pool.query(getExistingAddonsQuery, [booking_id]);
-            
+
             let existingAddonsArray = [];
             if (existingAddonsResult.rows.length > 0 && existingAddonsResult.rows[0].extra_addons) {
-              existingAddonsArray = existingAddonsResult.rows[0].extra_addons.split(",").map(Number); // Convert to array of numbers
+                existingAddonsArray = existingAddonsResult.rows[0].extra_addons.split(",").map(Number); // Convert to array of numbers
             }
-            
+
             // Step 2: Combine existing addons with new ones
             const newAddonsArray = req.body.addons || []; // Ensure new addons exist
             const updatedAddonsArray = [...new Set([...existingAddonsArray, ...newAddonsArray])]; // Merge without duplicates
             const updatedAddonsString = updatedAddonsArray.join(", "); // Convert back to a comma-separated string
             console.log(updatedAddonsString);
-            
+
             // Step 3: Update the database with the new addons list
             const updateOriginalOrderStatus = `
               UPDATE bookings 
@@ -881,12 +885,12 @@ const putExtendBookingController = async (req, res) => {
               WHERE id = $4 
               RETURNING id
             `;
-            
+
             const updateOriginalOrderStatusResult = await pool.query(updateOriginalOrderStatus, [
-              true,
-              booking_id,
-              updatedAddonsString,  // Updated addons list
-              booking_id
+                true,
+                booking_id,
+                updatedAddonsString,  // Updated addons list
+                booking_id
             ]);
             if (updateOriginalOrderStatusResult.rowCount != 0) {
                 return res.status(200).json({
@@ -913,7 +917,7 @@ const endBookingController = async (req, res) => {
     //Getting the booking id from the request Query.
     const { booking_id } = req.query;
     console.log(booking_id);
-    
+
     //Getting the admin id from the middleware.
     const admin_id = req.user.id;
 
