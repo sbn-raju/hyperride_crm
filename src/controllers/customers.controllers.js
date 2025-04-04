@@ -28,12 +28,23 @@ const getCustomersControllers = async (req, res) => {
   const getCustomersQuery = "SELECT * FROM customer_registration";
   try {
     const getCustomersResult = await pool.query(getCustomersQuery);
+    const aadhaar_number = getCustomersResult?.rows[0]?.user_adhaar_number;
+
+    //Decrypting the aadhaar number.
+    const decryptedAdhaarNumber = await decryptData(aadhaar_number);
     if (getCustomersResult.rowCount != 0) {
       return res.status(200).json({
         success: true,
         data: getCustomersResult.rows,
       });
     }
+    const finalData = {
+      data: {
+        ...getCustomersResult.rows[0],
+        user_aadhar_number: decryptedAdhaarNumber,
+      },
+      user_profile: getUserProfile,
+    };
   } catch (error) {
     console.log(error);
     return res.status(500).json({
@@ -86,8 +97,10 @@ const getCustomerControllers = async (req, res) => {
 
       //construct the final data.
       const finalData = {
-        data: getCustomersResult.rows[0],
-        user_aadhar_number: decryptedAdhaarNumber,
+        data: {
+          ...getCustomersResult.rows[0],
+          user_adhaar_number: decryptedAdhaarNumber,
+        },
         user_profile: getUserProfile,
       };
 
