@@ -21,6 +21,7 @@ const pushRideCompleteNotifications = require("./crons-jobs/PushRideCompleteNoti
 const analyticsRoute = require("./routes/analytics.routes");
 const processingsFeesRouter = require("./routes/processing.routes");
 const { checkS3Connection, putObjectsS3Function } = require("./services/s3Connect.services");
+const { connectRabbit } = require("./rabbit-mq/config");
 dotenv.config();
 
 //Importing the app
@@ -92,7 +93,12 @@ io.on("connection",(socket)=>{
 // putObjectsS3Function();
 
 //Calling Cron Jobs to run when they are shedulec
-// pushRideCompleteNotifications(getSocketConnections);
+pushRideCompleteNotifications(getSocketConnections);
+
+//Connecting to the Rabbit Mq Master.
+connectRabbit();
+
+//Activating the Consumers when the cronJobs are done the it gets activated.
 
 //Vehicles Routes
 app.use("/api/v1.hyperride/vehicle", vehicleRoute);
