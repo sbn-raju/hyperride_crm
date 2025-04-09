@@ -20,6 +20,7 @@ const serviceRoute = require("./routes/services.routes");
 const pushRideCompleteNotifications = require("./crons-jobs/PushRideCompleteNotify");
 const analyticsRoute = require("./routes/analytics.routes");
 const processingsFeesRouter = require("./routes/processing.routes");
+const { checkS3Connection, putObjectsS3Function } = require("./services/s3Connect.services");
 dotenv.config();
 
 //Importing the app
@@ -29,8 +30,8 @@ app.use(express.urlencoded({extended: true}));
 app.use(express.json());
 
 //Cors
-app.use(cors())
-// app.use(cors({origin: ["http://admin.hyprride.com", "http://localhost:5173"]}));
+// app.use(cors())
+app.use(cors({origin: ["https://hyprride.in", "http://localhost:5173"]}));
 
 //Adding the rate limiter to the application rto prevent DDos Attacks.
 const responseMessage = {
@@ -84,6 +85,11 @@ io.on("connection",(socket)=>{
         console.log("User disconnected:", socket.id);
     });
 });
+
+//Connecting AWS S3
+// connectS3Function();
+// checkS3Connection();
+// putObjectsS3Function();
 
 //Calling Cron Jobs to run when they are shedulec
 // pushRideCompleteNotifications(getSocketConnections);

@@ -4,7 +4,8 @@ const jwt = require("jsonwebtoken");
 const userAuthentication = async(req, res, next)=>{
 
     //Getting Tokens to the user.
-    const user_token = req.headers.auth_token;
+    const authHeader = req.headers.authorization;
+    const user_token = authHeader && authHeader.split(" ")[1];
 
 
     if(!user_token){
