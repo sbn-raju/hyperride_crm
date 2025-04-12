@@ -1,62 +1,74 @@
-const cron = require('node-cron');
+const cron = require("node-cron");
 const io = require("../index.js");
-const { pool } = require('../database/db.connect.js');
-const convertTime = require('../helpers/timeConversations.js');
-
-
+const { pool } = require("../database/db.connect.js");
+const convertTime = require("../helpers/timeConversations.js");
+const { getEndingRidesProducer } = require("../services/database.services.js");
+const {
+  produceNotification,
+} = require("../rabbit-mq/send-ride-ending-notify/producer.js");
 
 //This will push the notification to the Dashboard.
-const pushRideCompleteNotifications = (getSocketConnections) =>{
-    cron.schedule("* * * * *", async() => {
-        console.log("Checking for completed rides...");
-        
+const pushRideCompleteNotifications = (getSocketConnections) => {
+  cron.schedule("* * * * *", async () => {
+    console.log("Checking for completed rides...");
 
-        //This is Today's time.
-        const now = new Date();
-        //Adding the next hour in today's date for the getting the ride getting complete in nect one hour.
-        const nextHour = new Date(now.getTime() + 60 * 60 * 1000);
-        
-        //Converting the time to the desired way.
-        const hour = convertTime(now);
-        const upHour = convertTime(nextHour);
+    //This is Today's time.
+    const now = new Date();
+    //Adding the next hour in today's date for the getting the ride getting complete in nect one hour.
+    const nextHour = new Date(now.getTime() + 60 * 60 * 1000);
 
-        console.log(typeof(hour), upHour);
+    //Converting the time to the desired way.
+    const hour = convertTime(now);
+    const upHour = convertTime(nextHour);
 
-        //Getting the IO connections.
-        const io = getSocketConnections();
 
-        //Get all the timings from the booking which have the booking timings less then hour.
-        const getRidesQuery = "SELECT b.id AS booking_id, b.booking_status, b.is_extended, COALESCE(be.actual_return_timestamp, pd.actual_return_datetime) AS actual_return_time FROM bookings b LEFT JOIN bookings_extend be ON b.id = be.booking_id LEFT JOIN pickup_details pd ON b.pickup_details = pd.id WHERE b.booking_status = $1 AND ((b.is_extended = $2 AND be.actual_return_timestamp BETWEEN $3 AND $4) OR (b.is_extended = $5 AND pd.actual_return_datetime BETWEEN $6 AND $7))";
-        // const getRidesQuery = "SELECT * FROM pickup_details"
-        const getRidesValues = ["Live Booking", true, hour, upHour, false, hour, upHour];
-        
-        //Hit the Query to the database.
-        try {
-          const getRidesResults = await pool.query(getRidesQuery, getRidesValues);
-          if(getRidesResults.rowCount != 0){
-            console.log(getRidesResults.rows); 
-          }else{
-            console.log("No Rides to Send Notification");
-          }
-        } catch (error) {
-          console.log(error);
+    //Getting the results from the database.
+    const result = await getEndingRidesProducer(hour, upHour);
+    // console.log(result);
+
+    //Pushing the results into the queres so that the worker will process the Queries.
+    if (result.statusCode == 200) {
+      //Now iterating the data got from the database and make the message and sending it into the queues for the further processing.
+      result?.data?.map(async (messagePacket) => {
+        //Console log which message packet is recived by function from the database.
+        //Pushing each messages into the queues by using producers.
+        const response = await produceNotification(messagePacket);
+        // console.log("Logging from PushRideNotification after the pushing details into Queues", response);
+
+        if(response.statusCode === "200" && response.status === "SUCCESS"){
+          console.log("Logging from PushRideCompleteNotification", response?.response);
+        }else if(response.statusCode === "400" && response.status === "BAD_REQUEST"){
+          console.log("Logging from PushRideCompleteNotification", response?.response);
         }
-        
-        // rides.forEach((ride) => {
-        //   if (ride.status === "completed") {
-        //     // ride.status = "completed";
-      
-        //     // Send notification to the user
-        //     io.emit("ride_completed", {
-        //       message: `Your ride ${ride.id} is over. Thank you!`,
-        //       rideId: ride.id,
-        //     });
-      
-        //     console.log(`Ride ${ride.id} marked as completed.`);
-        //   }
-        // });
-    });
-}
+        else if(response.statusCode === "400" && response.status === "VALIDATION_ERROR"){
+          console.log("Logging from PushRideCompleteNotification", response?.response);
+        }
+        else if(response.statusCode === "500" && response.status === "INTERNAL_SERVER_ERROR"){
+          console.log("Logging from PushRideCompleteNotification", response?.response);
+        }
+      });
+    } else if (result.statusCode == 204) {
+      //Console log if no rides are found.
+      console.log("Logging from PushRideNotification", result.data);
+    } else if (result.statusCode == 500) {
+      //Console log if any errors are present.
+      console.log("Logging from PushRideNotification", result.data);
+    }
+  });
+};
 
+module.exports = pushRideCompleteNotifications;
 
-module.exports = pushRideCompleteNotifications
+// rides.forEach((ride) => {
+//   if (ride.status === "completed") {
+//     // ride.status = "completed";
+
+//     // Send notification to the user
+//     io.emit("ride_completed", {
+//       message: `Your ride ${ride.id} is over. Thank you!`,
+//       rideId: ride.id,
+//     });
+
+//     console.log(`Ride ${ride.id} marked as completed.`);
+//   }
+// });

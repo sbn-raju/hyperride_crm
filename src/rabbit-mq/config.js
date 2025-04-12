@@ -2,10 +2,10 @@ const RabbitMqConnectionUri = require("../utils/queuesUri.js");
 const amqplib = require('amqplib');
 
 //Declaring connection as the global variable so that it can be exported.
-let connection = {};
+let connection = null;
 
 //Creating Connection to the Application and the Rabbit MQ.
-async function  connectRabbit(){
+async function connectRabbit(){
 
     //Estiblishing the connection between the server and the Rabbit mq.
     try {
@@ -18,7 +18,15 @@ async function  connectRabbit(){
     
 }
 
+
+function getRabbitConnection() {
+    if (!connection) {
+      throw new Error("RabbitMQ connection has not been initialized. Call connectRabbit() first.");
+    }
+    return connection;
+  }
+
 module.exports = {
-   connection,
-   connectRabbit
+   connectRabbit,
+   getRabbitConnection
 }

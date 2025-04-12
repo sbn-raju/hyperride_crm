@@ -89,11 +89,18 @@ const addBookings = async (req, res) => {
                 const monthAbbr = new Date().toLocaleString('en-US', { month: 'short' }).toUpperCase();
                 const booking_id = `HYPR-${monthAbbr}${booking_details_id}`
 
-                //Updateing the status of the bikes to the people.
-                const updateVehicleStatusQuery = "UPDATE vehicle_master SET vehicle_isavailable = $1 WHERE id = $2";
+                //Updating the status of the bikes according to the booking type.
+                //Updating the vehicle status only when it is the live bookings.
+                if(booking_type === 'Live Booking'){
+                    const updateVehicleStatusQuery = "UPDATE vehicle_master SET vehicle_isavailable = $1 WHERE id = $2 RETURNING id";
                 const updateVehicleStatusValue = [false, vehicle_selected];
 
                 const updateVehicleStatusResult = await pool.query(updateVehicleStatusQuery, updateVehicleStatusValue);
+
+                if(updateVehicleStatusResult.rowCount == 0){
+                    throw Error("Error in updating vehicle status");
+                }
+                }
 
                 //Updating the booking of the booking.
                 const updateBookingIdQuery = "UPDATE bookings SET booking_id = $1 WHERE id = $2";
@@ -101,7 +108,7 @@ const addBookings = async (req, res) => {
 
                 const updateBookingIdResult = await pool.query(updateBookingIdQuery, updateBookingIdValues);
 
-                if (updateBookingIdResult.rowCount != 0 && updateVehicleStatusResult.rowCount != 0) {
+                if (updateBookingIdResult.rowCount != 0) {
                     await pool.query('COMMIT');
                     return res.status(201).json({
                         success: true,
@@ -317,6 +324,57 @@ const getAdvancedBookingsControllers = async (req, res) => {
         });
     }
 };
+
+
+//This Controllers will confirm the advance bookings and update the status of the vehicle.
+const confirmAdvancedBookingControllers = async(req, res)=>{
+
+    //Getting the values from the request body.
+    const {vehicle_id, booking_id} = req.body;
+
+    //Getting validations of null values.
+    if(!vehicle_id || !booking_id){
+        return res.status(400).json({
+            success: false,
+            message: "Vehicle Id Or Booking Id is not present"
+        })
+    }
+
+    //Fristly updating the vehicle status to false when the user have arrived.
+    const updateBikeStatusQuery = "UPDATE vehicle_master SET vehicle_isavailable = $1 WHERE id = $2 RETURNING id";
+    const updateBikeStatusValue = [false, vehicle_id];
+
+    //Updating the status of the bookings status.
+    const udpateBookingStatusQuery = "UPDATE bookings SET booking_status = $1 WHERE id = $2 RETURNING id";
+    const updateBookingStatusValues = ["Live Booking", booking_id];
+
+    try {
+        const updateBikeStatusResult = await pool.query(updateBikeStatusQuery, updateBikeStatusValue);
+
+        const updatBookingStatusResult = await pool.query(udpateBookingStatusQuery, updateBookingStatusValues);
+        console.log(updateBikeStatusResult.rows, updatBookingStatusResult.rows)
+
+        if(updateBikeStatusResult.rowCount != 0 && updatBookingStatusResult.rowCount != 0){
+            return res.status(200).json({
+                success: true,
+                message: "Booking is Confirmed"
+            })
+        }
+        else{
+            return res.status(400).json({
+                success: false,
+                message: "Error is confirming the status"
+            })
+        }
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            success: false,
+            message: `Internal Server Error: ${error.message}`,
+        });
+    }
+
+}
 
 
 const getCancelledBookingsControllers = async (req, res) => {
@@ -550,7 +608,7 @@ const getOrderDetailsController = async (req, res) => {
     }
 
     //Query to get the order details.
-    const getOrderDetailsQuery = "SELECT b.booking_status, b.comments, b.return_detail, b.booking_id, b.created_at, b.booking_time, b.amount_paid, b.amount_deposit, b.amount_pending, c.user_name, c.user_mobile, c.user_adhaar_number, c.user_address, c.user_gender, c.user_status, c.user_dob, c.user_care_of, v.vehicle_name, v.vehicle_number, v.engine_type, v.vehicle_category, v.vehicle_image, e.admin_name, e.admin_username, e.admin_email FROM bookings b JOIN customer_registration c ON c.id = b.customer_id JOIN vehicle_master v ON v.id = b.bike_id JOIN admin_registration e ON e.id = b.booked_by WHERE b.booking_id = $1"
+    const getOrderDetailsQuery = "SELECT b.id, b.booking_status, b.comments, b.return_detail, b.booking_id, b.created_at, b.booking_time, b.amount_paid, b.amount_deposit, b.amount_pending, c.user_name, c.user_mobile, c.user_adhaar_number, c.user_address, c.user_gender, c.user_status, c.user_dob, c.user_care_of, v.vehicle_name, v.vehicle_number, v.engine_type, v.vehicle_category, v.vehicle_image, e.admin_name, e.admin_username, e.admin_email FROM bookings b JOIN customer_registration c ON c.id = b.customer_id JOIN vehicle_master v ON v.id = b.bike_id JOIN admin_registration e ON e.id = b.booked_by WHERE b.booking_id = $1"
 
     const getOrderDetailsValues = [order_id];
 
@@ -561,10 +619,15 @@ const getOrderDetailsController = async (req, res) => {
         if (getOrderDetailsResult.rowCount != 0) {
 
             console.log(getOrderDetailsResult.rows);
+            const getExtentionResult = await pool.query('SELECT * FROM bookings_extend WHERE booking_id = $1',[getOrderDetailsResult.rows[0]?.id]);
+
 
             return res.status(200).json({
                 success: true,
-                data: getOrderDetailsResult.rows
+                data: {
+                    major: getOrderDetailsResult.rows,
+                    minor: getExtentionResult.rows
+                }
             })
         } else {
             return res.status(400).json({
@@ -881,15 +944,14 @@ const putExtendBookingController = async (req, res) => {
             // Step 3: Update the database with the new addons list
             const updateOriginalOrderStatus = `
               UPDATE bookings 
-              SET is_extended = $1, extended_details = $2, extra_addons = $3 
-              WHERE id = $4 
+              SET is_extended = $1, extra_addons = $2 
+              WHERE id = $3
               RETURNING id
             `;
 
             const updateOriginalOrderStatusResult = await pool.query(updateOriginalOrderStatus, [
                 true,
-                booking_id,
-                updatedAddonsString,  // Updated addons list
+                updatedAddonsString,  
                 booking_id
             ]);
             if (updateOriginalOrderStatusResult.rowCount != 0) {
@@ -1026,6 +1088,7 @@ module.exports = {
     addBookings,
     getLiveBookingsControllers,
     getAdvancedBookingsControllers,
+    confirmAdvancedBookingControllers,
     getSingleBookingController,
     exchangeBookingVehicleController,
     getOrderDetailsController,

@@ -1,6 +1,6 @@
 const express = require('express');
 
-const { putExtendBookingController,addBookings,endBookingController,getFilteredBookingsController, getCompletedBookingsControllers,getCancelledBookingsControllers,getLiveBookingsControllers, getAdvancedBookingsControllers, getSingleBookingController, exchangeBookingVehicleController, getOrderDetailsController, postReasonCancellation } = require('../controllers/bookings.controllers');
+const { putExtendBookingController,addBookings,endBookingController,getFilteredBookingsController, getCompletedBookingsControllers,getCancelledBookingsControllers,getLiveBookingsControllers, getAdvancedBookingsControllers, getSingleBookingController, exchangeBookingVehicleController, getOrderDetailsController, postReasonCancellation, confirmAdvancedBookingControllers } = require('../controllers/bookings.controllers');
 
 const { userAuthentication } = require('../middleware/auth.middleware');
 
@@ -12,6 +12,8 @@ bookingRoute.route("/add").post(userAuthentication, addBookings);
 bookingRoute.route("/live-bookings").get(userAuthentication, getLiveBookingsControllers);
 
 bookingRoute.route("/advanced-bookings").get(userAuthentication, getAdvancedBookingsControllers);
+
+bookingRoute.route("/confirm-booking").post(userAuthentication, confirmAdvancedBookingControllers);
 
 bookingRoute.route("/cancel-bookings").get(userAuthentication, getCancelledBookingsControllers);
 
@@ -26,6 +28,7 @@ bookingRoute.route("/completed-bookings").get(userAuthentication, getCompletedBo
 bookingRoute.route("/sales").post(userAuthentication,getFilteredBookingsController);
 
 bookingRoute.route("/endbooking").post(userAuthentication,endBookingController);
+
 bookingRoute.route("/reason-cancel").post(userAuthentication, postReasonCancellation);
 
 bookingRoute.route("/extend-form").post(userAuthentication, putExtendBookingController);

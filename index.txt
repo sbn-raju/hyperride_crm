@@ -1,0 +1,6 @@
+Types of categories of the notification 
+Admin Notification where the notifications are pushed to the admin dashboard.
+"Admin Notifications"
+This will have the sub category as the 
+"Complete Ride Notifications"
+"Advance Booking Notifications"

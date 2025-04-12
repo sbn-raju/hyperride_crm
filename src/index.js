@@ -16,12 +16,14 @@ const rentalRoute = require("./routes/rentals.routes");
 const bookingRoute = require("./routes/bookings.routes");
 const customerRoute = require("./routes/customers.routes");
 const serviceRoute = require("./routes/services.routes");
-// const io = require("./web-sockets.js");
+const  notificationRouter  = require("./routes/notification.routes");
 const pushRideCompleteNotifications = require("./crons-jobs/PushRideCompleteNotify");
 const analyticsRoute = require("./routes/analytics.routes");
 const processingsFeesRouter = require("./routes/processing.routes");
 const { checkS3Connection, putObjectsS3Function } = require("./services/s3Connect.services");
 const { connectRabbit } = require("./rabbit-mq/config");
+const { consumeNotification } = require("./rabbit-mq/send-ride-ending-notify/consumer");
+const { initializeSocket, getIO } = require("./services/sockets.services");
 dotenv.config();
 
 //Importing the app
@@ -66,26 +68,9 @@ connectToDatabase();
 
 //Making the Websockets Server for the notifications.
 const server = http.createServer(app);
-const io = new Server(server, {
-    cors:{
-        origin: process.env.FRONTEND_URI,
-        methods: ["GET", "POST"]
-    }
-});
+initializeSocket(server);
 
-//Exporting the IO so that it can be used in the cron-jobs.
-const getSocketConnections = () =>{
-    return io
-}
 
-//WebSockets Connection.
-io.on("connection",(socket)=>{
-    console.log("Connecting with client", socket.id);
-
-    socket.on("disconnect", () =>{
-        console.log("User disconnected:", socket.id);
-    });
-});
 
 //Connecting AWS S3
 // connectS3Function();
@@ -93,12 +78,16 @@ io.on("connection",(socket)=>{
 // putObjectsS3Function();
 
 //Calling Cron Jobs to run when they are shedulec
-pushRideCompleteNotifications(getSocketConnections);
+pushRideCompleteNotifications(getIO);
+
 
 //Connecting to the Rabbit Mq Master.
 connectRabbit();
 
 //Activating the Consumers when the cronJobs are done the it gets activated.
+//This is the consumer for the Ride Ending Notification to the Dashboard.
+consumeNotification();
+
 
 //Vehicles Routes
 app.use("/api/v1.hyperride/vehicle", vehicleRoute);
@@ -132,6 +121,9 @@ app.use("/api/v1.hyperride/analytics", analyticsRoute);
 
 //Processing Routes
 app.use("/api/v1.hyperride/processing", processingsFeesRouter);
+
+//Notification Routes
+app.use("/api/v1.hyperride/notification", notificationRouter);
 
 //Listening to the server.
 server.listen(PORT, ()=>{
