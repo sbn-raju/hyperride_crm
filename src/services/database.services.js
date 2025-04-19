@@ -3,7 +3,7 @@ const { pool } = require("../database/db.connect.js");
 const getEndingRidesProducer = async (hour, upHour) => {
   //Get all the timings from the booking which have the booking timings less then hour.
   const getRidesQuery =
-    "SELECT b.id AS booking_id, b.booking_status, b.is_extended, COALESCE(be.actual_return_timestamp, pd.actual_return_datetime) AS actual_return_time FROM bookings b LEFT JOIN bookings_extend be ON b.id = be.booking_id LEFT JOIN pickup_details pd ON b.pickup_details = pd.id WHERE b.booking_status = $1 AND ((b.is_extended = $2 AND be.extended_timestamp BETWEEN $3 AND $4) OR (b.is_extended = $5 AND pd.actual_return_datetime BETWEEN $6 AND $7))";
+    "SELECT b.id AS booking_id, b.booking_id AS order_id, b.booking_status, b.is_extended, COALESCE(be.actual_return_timestamp, pd.actual_return_datetime) AS actual_return_time FROM bookings b LEFT JOIN bookings_extend be ON b.id = be.booking_id LEFT JOIN pickup_details pd ON b.pickup_details = pd.id WHERE b.booking_status = $1 AND ((b.is_extended = $2 AND be.extended_timestamp BETWEEN $3 AND $4) OR (b.is_extended = $5 AND pd.actual_return_datetime BETWEEN $6 AND $7))";
 
   const getRidesValues = [
     "Live Booking",

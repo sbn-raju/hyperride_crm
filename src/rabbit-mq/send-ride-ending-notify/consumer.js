@@ -44,7 +44,7 @@ async function consumeNotification() {
         });
 
         //Console Logging the notification when the notification is pushed successfully.
-        console.log("Logging from the comsume notification of the PushRideEndingNotification is send successfully");
+        console.log("Logging from the comsume notification of the PushRideCompleteNotification is send successfully");
 
       }else if(result.statusCode == 400){
         console.log(result);

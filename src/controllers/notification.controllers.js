@@ -17,6 +17,7 @@ const getPaginatedNotifications = async (req, res) => {
       [limit, offset]
     );
 
+
     if(result.rowCount != 0){
         return res.status(200).json({
             data: result.rows,
@@ -40,7 +41,7 @@ const getPaginatedNotifications = async (req, res) => {
 
 
 
-//Make the API for the reading application.
+//Make the API updating the status of the notification as read.
 const updateNotificationStatusController = async(req, res)=>{
    
     //Getting the booking Id from the query of the request query.

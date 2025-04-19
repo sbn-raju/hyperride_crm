@@ -8,12 +8,22 @@ const getStatsController = async(req, res)=>{
     const getStatsValues = ["Live Booking", "Completed Booking", "Advanced Booking", "Cancelled Booking"];
 
 
+    const getNotificationsSatsQuery = "SELECT COUNT(message) FILTER (WHERE read = $1) AS notification_count FROM notification"
+    const getNotificationsSatsValue = [false]; 
+
+
     try {
         const getStatsResponse = await pool.query(getStats, getStatsValues);
-        if(getStatsResponse.rowCount != 0){
+
+        //Getting the notifications which are not read by any exuctive.
+        const getNotificationsSatsResult = await pool.query(getNotificationsSatsQuery, getNotificationsSatsValue);
+        if(getStatsResponse.rowCount != 0 && getNotificationsSatsResult.rowCount != 0){
             return res.status(200).json({
                 success: false,
-                data: getStatsResponse.rows 
+                data: {
+                    general_stats: getStatsResponse.rows,
+                    notification_stats: getNotificationsSatsResult.rows
+                }
             })
         }
     } catch (error) {

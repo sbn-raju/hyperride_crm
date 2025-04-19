@@ -78,15 +78,15 @@ initializeSocket(server);
 // putObjectsS3Function();
 
 //Calling Cron Jobs to run when they are shedulec
-pushRideCompleteNotifications(getIO);
+// pushRideCompleteNotifications(getIO);
 
 
 //Connecting to the Rabbit Mq Master.
-connectRabbit();
+// connectRabbit();
 
 //Activating the Consumers when the cronJobs are done the it gets activated.
 //This is the consumer for the Ride Ending Notification to the Dashboard.
-consumeNotification();
+// consumeNotification();
 
 
 //Vehicles Routes
