@@ -9,6 +9,7 @@ const encryptData = require("../helpers/encrypter.js");
 const decryptData = require("../helpers/decrypter.js");
 const otpGenerator = require("../helpers/otpGenerator.js");
 const customerRoute = require("../routes/customers.routes.js");
+const { putObjectsS3Function } = require("../services/s3Connect.services.js");
 
 //This is the to get all the customers.
 const getCustomersControllers = async (req, res) => {
@@ -31,7 +32,7 @@ const getCustomersControllers = async (req, res) => {
     const aadhaar_number = getCustomersResult?.rows[0]?.user_adhaar_number;
 
     //Decrypting the aadhaar number.
-    const decryptedAdhaarNumber = await decryptData(aadhaar_number);
+    // const decryptedAdhaarNumber = await decryptData(aadhaar_number);
     if (getCustomersResult.rowCount != 0) {
       return res.status(200).json({
         success: true,
@@ -474,6 +475,7 @@ console.log(ref_id,otp,aadhaar_number);
         return res.status(200).json({
           success: true,
           message: "Aadhaar details added successfully",
+          user_id: addCustomerDataResult.rows[0]?.id,
           user_name: holder_name,  // Send the name to frontend
           user_address: full_address,  // Send the address to frontend
         });
@@ -578,6 +580,116 @@ const updateCustomerMobileController = async (req, res) => {
   }
 };
 
+
+//This is the v2 route for image uploading.
+const addCustomerImageController = async(req, res)=>{
+
+  //Getting the image details from the request.
+  const { user_id, imageDetails } = req.body;
+  console.log(user_id);
+
+
+ 
+  
+  //Validation check.
+  if(!user_id || !imageDetails){
+    return res.status(400).json({
+      success: false,
+      message: "Please add the user details and image",
+    })
+  }
+
+  //Adding the Image into the S3 Buckets.
+  const response = await putObjectsS3Function(req?.file);
+  // console.log(response);
+  if(!response){
+    return res.status(400).json({
+      success: false,
+      message: "Error is uploading the image in s3"
+    })
+  }
+
+
+  //Global for the image details.
+  let image_details = "";
+
+  if(imageDetails === "aadhaar_front"){
+    image_details = "AADHAR_FRONT"
+  }else if(imageDetails === "aadhaar_back"){
+    image_details = "AADHAR_BACK"
+  }else if(imageDetails === "driving_front"){
+    image_details = "DRIVING_FRONT"
+  }else if(imageDetails === "driving_back"){
+    image_details = "DRIVING_BACK"
+  }else{
+    return res.status(400).json({
+      success: false,
+      message: "Invalid Image Details"
+    })
+  }
+
+  //Adding the following in the database.
+  const addImageQuery = "INSERT INTO user_images (user_id, image_link, image_details) VALUES ($1, $2, $3) RETURNING *";
+  const addImageValue = [user_id, response, image_details];
+
+
+  try {
+    const addImageResult = await pool.query(addImageQuery, addImageValue);
+    if(addImageResult.rowCount != 0){
+        return res.status(200).json({
+          success: false ,
+          message: "Image is uploaded successfully"
+        });
+    }
+  } catch (error) {
+    console.error("Error in uploading the image:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+  }
+
+}
+
+
+
+//Get the customer images controller
+const getCustomerImageController = async(req, res)=>{
+   
+  //Getting the user id from the query.
+  const { user_id } = req.query;
+
+  if(!user_id){
+    return res.status(400).json({
+      success: false,
+      message: "User id is not found"
+    })
+  }
+
+  //Get the images from the database.
+  const getImagesQuery = "SELECT * FROM user_images WHERE user_id = $1";
+  const getImagesValue = [user_id];
+
+  //Try and catch block.
+  try {
+    const getImageResult = await pool.query(getImagesQuery, getImagesValue);
+
+    if(getImageResult.rowCount != 0){
+      return res.status(200).json({
+        success: false,
+        data: getImageResult.rows
+      })
+    }
+  } catch (error) {
+    console.error("Error in uploading the image:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+  }
+}
+
+
 module.exports = {
   getCustomersControllers,
   getCustomerControllers,
@@ -587,5 +699,7 @@ module.exports = {
   verifyAadhaarOtpController,
   triggerMobileOtpCustomerController,
   getLastTransactionsDate,
-  updateCustomerMobileController
+  updateCustomerMobileController, 
+  addCustomerImageController,
+  getCustomerImageController
 };

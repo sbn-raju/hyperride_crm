@@ -1,6 +1,7 @@
 const express = require('express');
-const { updateCustomerMobileController,getCustomersControllers, getCustomerControllers, getLastTransactionsDate,  getCustomerDrivingLicencesControllers, getDrivingLicenseControllers, triggerAadharOtpController, verifyAadhaarOtpController } = require('../controllers/customers.controllers');
+const { updateCustomerMobileController,getCustomersControllers, getCustomerControllers, getLastTransactionsDate,  getCustomerDrivingLicencesControllers, getDrivingLicenseControllers, triggerAadharOtpController, verifyAadhaarOtpController, addCustomerImageController } = require('../controllers/customers.controllers');
 const { userAuthentication } = require('../middleware/auth.middleware');
+const image_uploader = require('../helpers/image-uploader-s3');
 
 
 const customerRoute = express();
@@ -17,8 +18,10 @@ customerRoute.route("/get-driving-license").get(userAuthentication,getDrivingLic
 customerRoute.route("/trigger-aadhaar-otp").post(userAuthentication,triggerAadharOtpController);
 
 customerRoute.route("/verify-aadhaar-otp").post(userAuthentication,verifyAadhaarOtpController);
+
 //added this route to add user mobile no and alt no
 customerRoute.route("/update-customer-mobile").post(userAuthentication,updateCustomerMobileController);
+
 customerRoute.route("/last-booking-date").get(userAuthentication,getLastTransactionsDate);
 
 

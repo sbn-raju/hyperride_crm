@@ -80,6 +80,14 @@ const addNotification = async(rideDetails, pushed_by)=>{
     }
 }
 
+
+//Token 3.
+//This is the notification which will convert the user image and will add to the queues.
+const imageProducers = async()=>{
+  
+  //Th
+}
+
 module.exports = {
   getEndingRidesProducer,
   addNotification,

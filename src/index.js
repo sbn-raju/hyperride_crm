@@ -24,6 +24,7 @@ const { checkS3Connection, putObjectsS3Function } = require("./services/s3Connec
 const { connectRabbit } = require("./rabbit-mq/config");
 const { consumeNotification } = require("./rabbit-mq/send-ride-ending-notify/consumer");
 const { initializeSocket, getIO } = require("./services/sockets.services");
+const customerRouteV2 = require("./routes-v2/customers.routes");
 dotenv.config();
 
 //Importing the app
@@ -74,7 +75,7 @@ initializeSocket(server);
 
 //Connecting AWS S3
 // connectS3Function();
-// checkS3Connection();
+checkS3Connection();
 // putObjectsS3Function();
 
 //Calling Cron Jobs to run when they are shedulec
@@ -124,6 +125,10 @@ app.use("/api/v1.hyperride/processing", processingsFeesRouter);
 
 //Notification Routes
 app.use("/api/v1.hyperride/notification", notificationRouter);
+
+
+//Image uploading Routes
+app.use("/api/v2.hyperride/customer", customerRouteV2);
 
 //Listening to the server.
 server.listen(PORT, ()=>{
