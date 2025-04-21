@@ -5,8 +5,12 @@ const fs = require('fs');
 const path = require('path');
 const nodemailer = require("nodemailer");
 const decryptData = require("../helpers/decrypter.js");
-
+const cfSdk = require('cashfree-sdk');
+const { Payouts } = cfSdk;
+const generateSignature = require("../helpers/generateApiSignature.js");
 require("dotenv").config();
+
+
 
 const addBookings = async (req, res) => {
 
@@ -91,15 +95,15 @@ const addBookings = async (req, res) => {
 
                 //Updating the status of the bikes according to the booking type.
                 //Updating the vehicle status only when it is the live bookings.
-                if(booking_type === 'Live Booking'){
+                if (booking_type === 'Live Booking') {
                     const updateVehicleStatusQuery = "UPDATE vehicle_master SET vehicle_isavailable = $1 WHERE id = $2 RETURNING id";
-                const updateVehicleStatusValue = [false, vehicle_selected];
+                    const updateVehicleStatusValue = [false, vehicle_selected];
 
-                const updateVehicleStatusResult = await pool.query(updateVehicleStatusQuery, updateVehicleStatusValue);
+                    const updateVehicleStatusResult = await pool.query(updateVehicleStatusQuery, updateVehicleStatusValue);
 
-                if(updateVehicleStatusResult.rowCount == 0){
-                    throw Error("Error in updating vehicle status");
-                }
+                    if (updateVehicleStatusResult.rowCount == 0) {
+                        throw Error("Error in updating vehicle status");
+                    }
                 }
 
                 //Updating the booking of the booking.
@@ -327,13 +331,13 @@ const getAdvancedBookingsControllers = async (req, res) => {
 
 
 //This Controllers will confirm the advance bookings and update the status of the vehicle.
-const confirmAdvancedBookingControllers = async(req, res)=>{
+const confirmAdvancedBookingControllers = async (req, res) => {
 
     //Getting the values from the request body.
-    const {vehicle_id, booking_id} = req.body;
+    const { vehicle_id, booking_id } = req.body;
 
     //Getting validations of null values.
-    if(!vehicle_id || !booking_id){
+    if (!vehicle_id || !booking_id) {
         return res.status(400).json({
             success: false,
             message: "Vehicle Id Or Booking Id is not present"
@@ -354,13 +358,13 @@ const confirmAdvancedBookingControllers = async(req, res)=>{
         const updatBookingStatusResult = await pool.query(udpateBookingStatusQuery, updateBookingStatusValues);
         console.log(updateBikeStatusResult.rows, updatBookingStatusResult.rows)
 
-        if(updateBikeStatusResult.rowCount != 0 && updatBookingStatusResult.rowCount != 0){
+        if (updateBikeStatusResult.rowCount != 0 && updatBookingStatusResult.rowCount != 0) {
             return res.status(200).json({
                 success: true,
                 message: "Booking is Confirmed"
             })
         }
-        else{
+        else {
             return res.status(400).json({
                 success: false,
                 message: "Error is confirming the status"
@@ -501,7 +505,7 @@ const getSingleBookingController = async (req, res) => {
             bookingData.actual_return_datetime = moment(bookingData.actual_return_datetime)
                 .tz("Asia/Kolkata") // or your preferred timezone
                 .format("YYYY-MM-DD HH:mm:ss"); // You can change the format if needed
-                console.log(bookingData.actual_return_datetime);
+            console.log(bookingData.actual_return_datetime);
         }
         //Getting Addons Details Also.
         const addonsString = getSingleResult.rows[0].extra_addons;
@@ -619,7 +623,7 @@ const getOrderDetailsController = async (req, res) => {
         if (getOrderDetailsResult.rowCount != 0) {
 
             console.log(getOrderDetailsResult.rows);
-            const getExtentionResult = await pool.query('SELECT * FROM bookings_extend WHERE booking_id = $1',[getOrderDetailsResult.rows[0]?.id]);
+            const getExtentionResult = await pool.query('SELECT * FROM bookings_extend WHERE booking_id = $1', [getOrderDetailsResult.rows[0]?.id]);
 
 
             return res.status(200).json({
@@ -951,7 +955,7 @@ const putExtendBookingController = async (req, res) => {
 
             const updateOriginalOrderStatusResult = await pool.query(updateOriginalOrderStatus, [
                 true,
-                updatedAddonsString,  
+                updatedAddonsString,
                 booking_id
             ]);
             if (updateOriginalOrderStatusResult.rowCount != 0) {
@@ -1004,11 +1008,12 @@ const endBookingController = async (req, res) => {
     }
 
     //Now get all the details of the booking from the datbase and proceed with updating the vehicle and booking status.
-    const getBikeDetailsQuery = "SELECT bike_id FROM bookings WHERE id = $1";
+    const getBikeDetailsQuery = "SELECT bike_id,amount_deposit FROM bookings WHERE id = $1";
     const getBikeDetailsValue = [booking_id];
 
     try {
         const getBikeDetailsResult = await pool.query(getBikeDetailsQuery, getBikeDetailsValue);
+        const { bike_id, amount_deposit } = getBikeDetailsResult.rows[0];
         if (getBikeDetailsResult.rowCount != 0) {
             //Once the bike details is got now lets insert the return form details into the database.
             //Query to insert the return form details.
@@ -1067,13 +1072,87 @@ RETURNING id
             const updateBookingStatusResult = await pool.query(updateBookingStatusQuery, updateBookingStatusValue);
 
             const updateVehicleStatusResult = await pool.query(updateVehicleStatusQuery, updateVehicelStatusValue);
-
-            if (updateBookingStatusResult.rowCount != 0 && updateVehicleStatusResult.rowCount != 0) {
+            if (parseFloat(amount_deposit) > 0) {
+                try {
+                    const signature = await generateSignature();
+                    // Step 4.1: Get Auth Token from Cashfree
+                    const authResponse = await fetch("https://payout-gamma.cashfree.com/payout/v1/authorize", {
+                        method: "POST",
+                        headers: {
+                            "X-Client-Id": process.env.CASHFREE_CLIENT_ID,
+                            "X-Client-Secret": process.env.CASHFREE_CLIENT_SECRET,
+                            "X-Cf-Signature": signature,  // Correct placement of signature
+                        },
+                    });
+    
+                    const authData = await authResponse.json();
+    
+                    if (authData.status !== "SUCCESS") {
+                        return res.status(500).json({
+                            success: true,
+                            message: "Ride finished, but failed to authenticate with Cashfree.",
+                            cashfreeAuthResponse: authData,
+                        });
+                    }
+    
+                    const token = authData.data.token;
+                    const cashgramId = `deposit_${booking_id}_${Date.now()}`;
+                    const expiryDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]; // 3 days
+                    
+                    const cashgramResponse = await fetch("https://payout-gamma.cashfree.com/payout/v1/createCashgram", {
+                        method: "POST",
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                            cashgramId: cashgramId,
+                            amount: parseFloat(amount_deposit),
+                            name: req.user.name || "Customer",
+                            email: req.user.email || "customer@example.com",
+                            phone: req.user.phone || "9000000000",
+                            linkExpiry: expiryDate,
+                            remarks: `Deposit refund for booking ${booking_id}`,
+                            notifyCustomer: 1,
+                        }),
+                    });
+    
+                    const cashgramData = await cashgramResponse.json();
+                    console.log("hiii",cashgramData)
+                    if (cashgramData.status === "SUCCESS") {
+                        return res.status(200).json({
+                            success: true,
+                            message: "Ride finished. Cashgram generated for deposit refund.",
+                            cashgramLink: cashgramData.data.cashgramLink,
+                            referenceId: cashgramData.data.referenceId,
+                        });
+                    } else {
+                        return res.status(200).json({
+                            success: true,
+                            message: "Ride finished, but failed to generate cashgram.",
+                            cashfreeResponse: cashgramData,
+                        });
+                    }
+                } catch (err) {
+                    console.error("Cashgram Error:", err);
+                    return res.status(500).json({
+                        success: true,
+                        message: "Ride finished, but failed to initiate Cashgram payout.",
+                        error: err.message,
+                    });
+                }
+            } else {
                 return res.status(200).json({
                     success: true,
-                    message: "Ride is finished successfully."
-                })
+                    message: "Ride finished successfully. No deposit refund required.",
+                });
             }
+            // if (updateBookingStatusResult.rowCount != 0 && updateVehicleStatusResult.rowCount != 0) {
+            //     return res.status(200).json({
+            //         success: true,
+            //         message: "Ride is finished successfully."
+            //     })
+            // }
         }
     } catch (error) {
         console.error(error);
@@ -1083,7 +1162,137 @@ RETURNING id
         });
     }
 }
+// const endBookingController = async (req, res) => {
+//     const { booking_id } = req.query;
+//     const admin_id = req.user.id;
+//     const { testRide_by, vehicle_condition, damage, repair_cost, amount_collected, deposit_return, km_readings } = req.body;
 
+//     if (!booking_id) {
+//         return res.status(400).json({ success: false, message: "Booking ID is missing" });
+//     }
+
+//     if (!testRide_by || !damage || !amount_collected || !km_readings) {
+//         return res.status(400).json({ success: false, message: "Return form is not completely filled" });
+//     }
+
+//     try {
+//         // Step 1: Get Booking Details
+//         const getBookingDetailsQuery = "SELECT bike_id, amount_deposit FROM bookings WHERE id = $1";
+//         const getBookingDetailsResult = await pool.query(getBookingDetailsQuery, [booking_id]);
+
+//         if (getBookingDetailsResult.rowCount === 0) {
+//             return res.status(404).json({ success: false, message: "No booking found" });
+//         }
+
+//         const { bike_id, amount_deposit } = getBookingDetailsResult.rows[0];
+//         const return_datetime = new Date().toISOString();
+//         const actual_datetime = new Date().toISOString();
+
+//         // Step 2: Add Return Form Entry
+//         const addReturnFormQuery = `
+//         INSERT INTO return_details 
+//         (testride_by, deposit_return, amount_collected, repair_cost, vehicle_condition, damage, updated_by, created_by, km_readings, return_datetime, actual_datetime) 
+//         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+//       `;
+//         const addReturnFormValue = [
+//             testRide_by,
+//             deposit_return,
+//             amount_collected,
+//             repair_cost,
+//             vehicle_condition,
+//             damage,
+//             admin_id,
+//             admin_id,
+//             km_readings,
+//             return_datetime,
+//             actual_datetime
+//         ];
+
+//         await pool.query(addReturnFormQuery, addReturnFormValue);
+
+//         // Step 3: Update booking & bike status
+//         await pool.query("UPDATE bookings SET booking_status = $1 WHERE id = $2", ["Completed Booking", booking_id]);
+//         await pool.query("UPDATE vehicle_master SET vehicle_isavailable = $1 WHERE id = $2", [true, bike_id]);
+
+//         // Step 4: If deposit > 0, generate Cashgram
+//         if (parseFloat(amount_deposit) > 0) {
+//             try {
+//                 // Step 4.1: Get Auth Token from Cashfree
+//                 const authResponse = await fetch("https://payout-gamma.cashfree.com/payout/v1/authorize", {
+//                     method: "POST",
+//                     headers: {
+//                         "X-Client-Id": process.env.CASHFREE_CLIENT_ID,
+//                         "X-Client-Secret": process.env.CASHFREE_CLIENT_SECRET,
+//                     },
+//                 });
+
+//                 const authData = await authResponse.json();
+
+//                 if (authData.status !== "SUCCESS") {
+//                     return res.status(500).json({
+//                         success: true,
+//                         message: "Ride finished, but failed to authenticate with Cashfree.",
+//                         cashfreeAuthResponse: authData,
+//                     });
+//                 }
+
+//                 const token = authData.data.token;
+//                 const cashgramId = `deposit_${booking_id}_${Date.now()}`;
+//                 const expiryDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]; // 3 days
+
+//                 const cashgramResponse = await fetch("https://payout-gamma.cashfree.com/payout/v1/createCashgram", {
+//                     method: "POST",
+//                     headers: {
+//                         Authorization: `Bearer ${token}`,
+//                         "Content-Type": "application/json",
+//                     },
+//                     body: JSON.stringify({
+//                         cashgramId: cashgramId,
+//                         amount: parseFloat(amount_deposit),
+//                         name: req.user.name || "Customer",
+//                         email: req.user.email || "customer@example.com",
+//                         phone: req.user.phone || "9000000000",
+//                         linkExpiry: expiryDate,
+//                         remarks: `Deposit refund for booking ${booking_id}`,
+//                         notifyCustomer: true,
+//                     }),
+//                 });
+
+//                 const cashgramData = await cashgramResponse.json();
+
+//                 if (cashgramData.status === "SUCCESS") {
+//                     return res.status(200).json({
+//                         success: true,
+//                         message: "Ride finished. Cashgram generated for deposit refund.",
+//                         cashgramLink: cashgramData.data.cashgramLink,
+//                         referenceId: cashgramData.data.referenceId,
+//                     });
+//                 } else {
+//                     return res.status(200).json({
+//                         success: true,
+//                         message: "Ride finished, but failed to generate cashgram.",
+//                         cashfreeResponse: cashgramData,
+//                     });
+//                 }
+//             } catch (err) {
+//                 console.error("Cashgram Error:", err);
+//                 return res.status(500).json({
+//                     success: true,
+//                     message: "Ride finished, but failed to initiate Cashgram payout.",
+//                     error: err.message,
+//                 });
+//             }
+//         } else {
+//             return res.status(200).json({
+//                 success: true,
+//                 message: "Ride finished successfully. No deposit refund required.",
+//             });
+//         }
+//     } catch (error) {
+//         console.error("Internal Server Error:", error);
+//         return res.status(500).json({ success: false, message: "Internal server error", error: error.message });
+//     }
+// };
 module.exports = {
     addBookings,
     getLiveBookingsControllers,
