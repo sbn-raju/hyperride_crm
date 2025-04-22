@@ -1120,6 +1120,7 @@ RETURNING id
                     const cashgramData = await cashgramResponse.json();
                     console.log("hiii",cashgramData)
                     if (cashgramData.status === "SUCCESS") {
+                        
                         return res.status(200).json({
                             success: true,
                             message: "Ride finished. Cashgram generated for deposit refund.",
@@ -1293,6 +1294,62 @@ RETURNING id
 //         return res.status(500).json({ success: false, message: "Internal server error", error: error.message });
 //     }
 // };
+
+
+//This controller which is used to get the user older order details.
+const getUserOlderOrdersControllers = async(req, res)=>{
+
+    //Get the details of the user in the request body.
+    const { user_id } = req.query;
+
+    //Get the pagination details from the request query.
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 10;
+    const offset = (page - 1) * limit;
+
+
+    //Validation check of the user details.
+    if(!user_id){
+        return res.status(400).json({
+            success: false,
+            message: "User Id is not present in the details"
+        })
+    }
+    //Getting the count of the s
+
+    //Getting the older orders of the customer.
+    const getOrderQuery = "SELECT * FROM bookings WHERE customer_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3";
+    const getOrderValue = [user_id, limit, offset];
+
+    try {
+          // Get total count for pagination
+    const countQuery = "SELECT COUNT(*) FROM bookings WHERE customer_id = $1";
+    const countResult = await pool.query(countQuery, [user_id]);
+    const totalCount = parseInt(countResult.rows[0].count, 10);
+
+        const getOrderResult = await pool.query(getOrderQuery, getOrderValue);
+        if(getOrderResult.rowCount != 0){
+            return res.status(200).json({
+                success: true,
+                data: getOrderResult.rows,
+                totalCount
+            })
+        }else{
+            return res.status(500).json({
+                success: false,
+                data: getOrderResult.rows,
+                totalCount
+            })
+        }
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            success: false,
+            message: `Internal Server Error: ${error.message}`,
+        });
+    }
+
+}
 module.exports = {
     addBookings,
     getLiveBookingsControllers,
@@ -1307,6 +1364,7 @@ module.exports = {
     postReasonCancellation,
     endBookingController,
     putExtendBookingController,
+    getUserOlderOrdersControllers
 }
 
 

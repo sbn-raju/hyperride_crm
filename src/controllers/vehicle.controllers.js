@@ -171,7 +171,7 @@ const getAllVehicleControllers = async (req, res) => {
   const offset = (page - 1) * limit; // Calculate offset for pagination
 
   // Query to get the total count of vehicles
-  const countQuery = "SELECT COUNT(*) FROM vehicle_master";
+  const countQuery = "SELECT COUNT(*) FROM vehicle_master WHERE is_delete = $1";
 
   // Query to fetch the vehicles with limit and offset
   const getQuery = `
@@ -181,15 +181,17 @@ const getAllVehicleControllers = async (req, res) => {
     `;
 
   try {
+    
     // Execute the count query
-    const countResult = await pool.query(countQuery);
+    const countResult = await pool.query(countQuery, [0]);
     const totalCount = parseInt(countResult.rows[0].count, 10);
 
     // Execute the fetch query
     const getQueryResult = await pool.query(getQuery, [0, limit, offset]);
+  
 
     // Check if vehicles are found
-    if (getQueryResult.rowCount > 0) {
+    if (getQueryResult.rowCount != 0) {
       return res.status(200).json({
         success: true,
         data: getQueryResult.rows,

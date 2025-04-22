@@ -20,7 +20,7 @@ vehicleRoute.route("/unfreeze").put(userAuthentication, authorization(["superAdm
 vehicleRoute.route("/available/all-fetch").get(userAuthentication, authorization(["superAdmin", "employee", "conflictManager"]), getAllAvailableVehicleControllers);
 
 //All Vehicles.
-vehicleRoute.route("/all-fetch").get(userAuthentication, authorization(["superAdmin"]), getAllVehicleControllers);
+vehicleRoute.route("/all-fetch").get(userAuthentication, authorization(["superAdmin", "employee", "conflictManager"]), getAllVehicleControllers);
 
 //Single Vehicle.
 vehicleRoute.route("/single-fetch").get(userAuthentication, authorization(["superAdmin", "employee", "conflictManager" ]), getSingleVehicleControllers);

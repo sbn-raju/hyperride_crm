@@ -4,56 +4,81 @@ const generateVerificationId = require("../helpers/generateVerificatioId.js");
 const cashfreeUrl = require("../helpers/BaseURL.js");
 const axios = require("axios");
 const fs = require("fs");
-const moment = require("moment");
+const moment = require("moment-timezone");
 const encryptData = require("../helpers/encrypter.js");
 const decryptData = require("../helpers/decrypter.js");
 const otpGenerator = require("../helpers/otpGenerator.js");
 const customerRoute = require("../routes/customers.routes.js");
 const { putObjectsS3Function } = require("../services/s3Connect.services.js");
+const BASEURL = require("../helpers/selfUrl.js");
 
-//This is the to get all the customers.
 const getCustomersControllers = async (req, res) => {
-  //Add the pagination.
-  //Getting the limit and offset from the query string.
-  //   const { limit, offset } = req.query;
+  let { page = 1, limit = 5 } = req.query;
+  page = parseInt(page);
+  limit = parseInt(limit);
 
-  //   //Validation check.
-  //   if (!limit || !offset) {
-  //     return res.status(400).json({
-  //       success: false,
-  //       message: "Re-check the data sent",
-  //     });
-  //   }
-
-  //Query to get all the customers from the database.
-  const getCustomersQuery = "SELECT * FROM customer_registration";
   try {
-    const getCustomersResult = await pool.query(getCustomersQuery);
-    const aadhaar_number = getCustomersResult?.rows[0]?.user_adhaar_number;
+    // Count total customers
+    const countResult = await pool.query('SELECT COUNT(*) FROM customer_registration');
+    const totalCount = parseInt(countResult.rows[0].count);
 
-    //Decrypting the aadhaar number.
-    // const decryptedAdhaarNumber = await decryptData(aadhaar_number);
-    if (getCustomersResult.rowCount != 0) {
-      return res.status(200).json({
-        success: true,
-        data: getCustomersResult.rows,
-      });
-    }
-    const finalData = {
-      data: {
-        ...getCustomersResult.rows[0],
-        user_aadhar_number: decryptedAdhaarNumber,
-      },
-      user_profile: getUserProfile,
-    };
-  } catch (error) {
-    console.log(error);
-    return res.status(500).json({
-      success: false,
-      message: `Internal Server Error: ${error}`,
+    // Get paginated customers
+    const customersResult = await pool.query(
+      `SELECT * FROM customer_registration ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
+      [limit, (page - 1) * limit]
+    );
+
+    res.status(200).json({
+      data: customersResult.rows,
+      totalCount
     });
+  } catch (error) {
+    console.error('Error fetching customers:', error);
+    res.status(500).json({ message: 'Internal Server Error' });
   }
 };
+
+const serchGetCustomers = async (req, res) => {
+  let { query = '', page = 1, limit = 5 } = req.query;
+  page = parseInt(page);
+  limit = parseInt(limit);
+
+  try {
+    const searchTerm = `%${query}%`;
+
+    const searchCondition = `
+      WHERE user_name :: text ILIKE $1
+      OR user_mobile :: text ILIKE $1
+      OR user_address :: text ILIKE $1
+      OR user_alt_no :: text ILIKE $1
+    `;
+
+    // Count matching records
+    const countResult = await pool.query(
+      `SELECT COUNT(*) FROM customer_registration ${searchCondition}`,
+      [searchTerm]
+    );
+    const totalCount = parseInt(countResult.rows[0].count);
+
+    // Fetch matching paginated results
+    const customersResult = await pool.query(
+      `SELECT * FROM customer_registration ${searchCondition}
+       ORDER BY created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [searchTerm, limit, (page - 1) * limit]
+    );
+
+    res.status(200).json({
+      data: customersResult.rows,
+      totalCount
+    });
+  } catch (error) {
+    console.error('Search Error:', error);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+};
+
+
 
 //This is to get the single customer details.
 const getCustomerControllers = async (req, res) => {
@@ -159,6 +184,7 @@ const getLastTransactionsDate = async (req, res) => {
 const getCustomerDrivingLicencesControllers = async (req, res) => {
   //Getting the user driving details from the Body.
   const { customer_id, dl_number, dob } = req.body;
+  console.log("This is the customer driving license details", dob, dl_number);
 
   //Call the function to generate the signature for the request.
   const signature = await generateSignature();
@@ -178,7 +204,7 @@ const getCustomerDrivingLicencesControllers = async (req, res) => {
   }
 
   //Converting the Date of Birth to the YYYY-MM-DD fromate.
-  const dateOfBirth = moment(dob).format("YYYY-MM-DD");
+  const dateOfBirth = moment.utc(dob).tz("Asia/Kolkata").format("YYYY-MM-DD");
 
   //Get the client details from the env.
   const clientId = process.env.CASHFREE_CLIENT_ID;
@@ -441,7 +467,7 @@ console.log(ref_id,otp,aadhaar_number);
       const splitString = base64String.split(",")[1];
 
       //Converting the Base 64 String into the Buffer.
-      const bufferPhotoString = Buffer.from(splitString, "base64");
+      const bufferPhotoString = Buffer.from(base64String, "base64");
       console.log(bufferPhotoString);
 
       //Setting the isverified to true is the status of the aadhar is true.
@@ -690,8 +716,79 @@ const getCustomerImageController = async(req, res)=>{
 }
 
 
+//This controller will update contact number and details.
+const getCustomerPutContactControllers = async(req, res)=>{
+
+  //Getting the user id and the contact numbers to update.
+  // const 
+}
+
+
+//This controller will update the  driving licence details of the user.
+const userDrivingLicenseUpdateControllers = async(req, res)=>{
+
+  //Getting the user id from the query.
+  const { customer_id, dl_number, dob } = req.body;
+
+  //Validation Check.
+  if(!customer_id){
+    return res.status(400).json({
+      success: false,
+      message: "User Id is not present"
+    })
+  }
+
+  //Query to delete the driving license.
+  const deleteDrivingQuery = "DELETE FROM driving_license WHERE customer_id = $1 RETURNING id";
+  const deleteDrivingValue = [ customer_id ];
+
+  try {
+    const deleteDrivingResult = await pool.query(deleteDrivingQuery, deleteDrivingValue);
+    if(deleteDrivingResult.rowCount != 0){
+
+      //Getting Tokens to the user.
+      const authHeader = req.headers.authorization;
+      const user_token = authHeader && authHeader.split(" ")[1];
+
+    //Calling the internal API to save the driving licence
+      const response = await fetch(`${BASEURL}/customers/fetch-driving-licence`,{
+        method : "POST",
+        headers: {
+          "Content-Type" : "application/json",
+          Authorization: `Bearer ${user_token}`,
+        },
+        body:JSON.stringify({
+          dl_number: dl_number,
+          dob: dob,
+          customer_id: customer_id
+        })
+      });
+
+      if(response.ok){
+        const result = await response.json();
+        console.log("This is logging form update Driving licencse", result);
+        return res.status(200).json({
+          success: true,
+          message : "Driving License Update Successfully"
+       })
+      }else{
+        const result = await response.json();
+        throw new Error(result.error || "Internal Server Error");
+      }
+    }
+  } catch (error) {
+    console.error("Error in uploading the image:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+  }
+}
+
+
 module.exports = {
   getCustomersControllers,
+  serchGetCustomers,
   getCustomerControllers,
   getCustomerDrivingLicencesControllers,
   getDrivingLicenseControllers,
@@ -701,5 +798,6 @@ module.exports = {
   getLastTransactionsDate,
   updateCustomerMobileController, 
   addCustomerImageController,
-  getCustomerImageController
+  getCustomerImageController,
+  userDrivingLicenseUpdateControllers
 };

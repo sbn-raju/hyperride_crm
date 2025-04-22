@@ -9,7 +9,7 @@ const {
 
 //This will push the notification to the Dashboard.
 const pushRideCompleteNotifications = (getSocketConnections) => {
-  cron.schedule("* * * * *", async () => {
+  cron.schedule("*/15 * * * *", async () => {
     console.log("Checking for completed rides...");
 
     //This is Today's time.

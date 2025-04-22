@@ -20,23 +20,23 @@ const getEndingRidesProducer = async (hour, upHour) => {
     const getRidesResults = await pool.query(getRidesQuery, getRidesValues);
     if (getRidesResults.rowCount != 0) {
     //   console.log("This is from the Database Services 1", getRidesResults.rows);
-      return (result = {
+      return {
         statusCode: 200,
         data: getRidesResults.rows,
-      });
+      };
     } else {
     //   console.log("No Rides to Send Notification");
-      return (result = {
+      return  {
         statusCode: 204,
         data: "No Rides to Send Notification",
-      });
+      };
     }
   } catch (error) {
     console.log(error);
-    return (result = {
+    return {
       statusCode: 500,
       data: `This is from the getEndingRideProduced: ${error}`,
-    });
+    };
   }
 };
 

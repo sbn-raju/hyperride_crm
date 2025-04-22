@@ -5,7 +5,7 @@ const authorization = (roles = []) => {
     //Getting the role from the authentication middlware;
     const { role } = req.user;
 
-    console.log(role);
+    console.log(req.user.role);
     //If the role is not present.
     if(!role){
         return res.status(403).json({

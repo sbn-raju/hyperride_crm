@@ -4,6 +4,6 @@
 const cashfreeUrl = "https://sandbox.cashfree.com/verification"
 
 //This is for the Production APIs.
-// const cashfreeUrl = ""
+// const cashfreeUrl = "https://api.cashfree.com/verification"
 
 module.exports = cashfreeUrl
